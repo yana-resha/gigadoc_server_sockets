@@ -44,28 +44,28 @@ wss.on('connection', (ws) => {
             bmi: {
               value: 42.95459959, 
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
             cholesterol: {
               value: 7.9,
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
             diabetes: {
               value: 0.047,
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
             emotion: {value: "Happiness"},
@@ -73,10 +73,10 @@ wss.on('connection', (ws) => {
             glycated_hemoglobin: {
               value: 6.8,
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
             heart_rate: {value: 60},
@@ -85,65 +85,65 @@ wss.on('connection', (ws) => {
             lower_ap: {
               value: 130,
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
             pnn50: {
               value: 16,
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
             respiratory: {value: 18.039459385397222},
             rigidity: {
               value: 15,
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
             sdnn: {
               value: 18,
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
             stress: {
               value: 999.33333333333334, 
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
             upper_ap: {
               value: 120,
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
             fatigue: { 
               value: 'small',
               step_values: [
-                {from: 14, to: 18.5, status: 'low'}, 
+                {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
-                {from: 25, to: 30, status: 'pre-high'}, 
-                {from: 25, to: 45, status: 'high',}
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
               ],
             },
           
