@@ -43,6 +43,7 @@ wss.on('connection', (ws) => {
             age_std: {value: '2'},
             bmi: {
               value: 42.95459959, 
+              status: 'deviation',
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
@@ -52,6 +53,7 @@ wss.on('connection', (ws) => {
             },
             cholesterol: {
               value: 7.9,
+              status: 'deviation',
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
@@ -59,8 +61,17 @@ wss.on('connection', (ws) => {
                 {from: 25, to: 45, status: 'serious',}
               ],
             },
+            cardio_age: {
+              value: 47,
+              status: 'deviation',
+            },
+            wellness_score: {
+              value: 3,
+              status: 'deviation',
+            },
             diabetes: {
               value: 0.047,
+              status: 'deviation',
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
@@ -70,7 +81,8 @@ wss.on('connection', (ws) => {
             },
             emotion: {value: "Happiness"},
             ethnicity: {value: "Asian"},
-            glycated_hemoglobin: {
+            relax_level: {
+              status: 'deviation',
               value: 6.8,
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
@@ -79,11 +91,22 @@ wss.on('connection', (ws) => {
                 {from: 25, to: 45, status: 'serious',}
               ],
             },
-            heart_rate: {value: 60},
+            glycated_hemoglobin: {
+              status: 'deviation',
+              value: 6.8,
+              step_values: [
+                {from: 14, to: 18.5, status: 'deviation'}, 
+                {from: 18.5, to: 25, status: 'normal'}, 
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
+              ],
+            },
+            heart_rate: {value: 60, status: 'deviation',},
             raw_ppg: {value: [10, 160, 30, 0, 160, 50, 160, 0]},
             gender: {value: 0},
             lower_ap: {
               value: 130,
+              status: 'deviation',
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
@@ -93,6 +116,7 @@ wss.on('connection', (ws) => {
             },
             pnn50: {
               value: 16,
+              status: 'deviation',
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
@@ -102,6 +126,7 @@ wss.on('connection', (ws) => {
             },
             respiratory: {value: 18.039459385397222},
             rigidity: {
+              status: 'deviation',
               value: 15,
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
@@ -112,6 +137,7 @@ wss.on('connection', (ws) => {
             },
             sdnn: {
               value: 18,
+              status: 'deviation',
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
@@ -121,6 +147,7 @@ wss.on('connection', (ws) => {
             },
             stress: {
               value: 999.33333333333334, 
+              status: 'deviation',
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
@@ -130,6 +157,7 @@ wss.on('connection', (ws) => {
             },
             upper_ap: {
               value: 120,
+              status: 'deviation',
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
@@ -137,8 +165,93 @@ wss.on('connection', (ws) => {
                 {from: 25, to: 45, status: 'serious',}
               ],
             },
+
+            lpa: {
+              value: 120,
+              status: 'deviation',
+              step_values: [
+                {from: 14, to: 18.5, status: 'deviation'}, 
+                {from: 18.5, to: 25, status: 'normal'}, 
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
+              ],
+            },
+
+            ldh_chol: {
+              value: 120,
+              status: 'deviation',
+              step_values: [
+                {from: 14, to: 18.5, status: 'deviation'}, 
+                {from: 18.5, to: 25, status: 'normal'}, 
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
+              ],
+            },
+            cardiac_risk: {
+              value: 120,
+              status: 'deviation',
+              step_values: [
+                {from: 14, to: 18.5, status: 'deviation'}, 
+                {from: 18.5, to: 25, status: 'normal'}, 
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
+              ],
+            },
+            atherosclerosis_risk: {
+              value: 120,
+              status: 'deviation',
+              step_values: [
+                {from: 14, to: 18.5, status: 'deviation'}, 
+                {from: 18.5, to: 25, status: 'normal'}, 
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
+              ],
+            },
+            ag_risk: {
+              value: 120,
+              status: 'deviation',
+              step_values: [
+                {from: 14, to: 18.5, status: 'deviation'}, 
+                {from: 18.5, to: 25, status: 'normal'}, 
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
+              ],
+            },
+            hypoxia_risk: {
+              value: 120,
+              status: 'deviation',
+              step_values: [
+                {from: 14, to: 18.5, status: 'deviation'}, 
+                {from: 18.5, to: 25, status: 'normal'}, 
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
+              ],
+            },
+            hdl_chol: {
+              value: 120,
+              status: 'deviation',
+              step_values: [
+                {from: 14, to: 18.5, status: 'deviation'}, 
+                {from: 18.5, to: 25, status: 'normal'}, 
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
+              ],
+            },
+
+            triglycerides: {
+              value: 120,
+              status: 'deviation',
+              step_values: [
+                {from: 14, to: 18.5, status: 'deviation'}, 
+                {from: 18.5, to: 25, status: 'normal'}, 
+                {from: 25, to: 30, status: 'problem'}, 
+                {from: 25, to: 45, status: 'serious',}
+              ],
+            },
+
             fatigue: { 
               value: 'small',
+              status: 'deviation',
               step_values: [
                 {from: 14, to: 18.5, status: 'deviation'}, 
                 {from: 18.5, to: 25, status: 'normal'}, 
