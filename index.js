@@ -145,7 +145,7 @@ wss.on("connection", (ws) => {
         case 1:
           message = {
             type: "params",
-            age: { value: 32 },
+            age: { value: 31 },
             real_age: { value: 60 },
             age_std: { value: "2" },
 
@@ -317,7 +317,7 @@ wss.on("connection", (ws) => {
 
             stress: {
               value: 999.33333333333334,
-              status: "deviation",
+              status: "serious",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
