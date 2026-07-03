@@ -2,14 +2,196 @@ const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 const cors = require("cors");
+const swaggerUi = require("swagger-ui-express");
 
 const app = express();
+const PORT = Number(process.env.PORT) || 8000; // ✅ чтобы совпало с SERVER_PATH
 
 // для отладки можно так (или ограничить origin как раньше)
 app.use(cors());
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+
+/* ===========================
+   APP STAGE STATE
+=========================== */
+
+const APP_STAGES = {
+  ZERO: "zero",
+  RESULTS: "results",
+};
+
+const STAGE_ALIASES = {
+  0: APP_STAGES.ZERO,
+  none: APP_STAGES.ZERO,
+  start: APP_STAGES.ZERO,
+  zero: APP_STAGES.ZERO,
+  result: APP_STAGES.RESULTS,
+  results: APP_STAGES.RESULTS,
+};
+
+const resolveStage = (rawStage) => STAGE_ALIASES[String(rawStage).toLowerCase()];
+
+const readInitialStage = () => {
+  const stageArg = process.argv.find((arg) => arg.startsWith("--stage="));
+  const rawStage =
+    process.env.APP_STAGE ||
+    process.env.STAGE ||
+    (stageArg ? stageArg.split("=")[1] : undefined) ||
+    APP_STAGES.RESULTS;
+  const stage = resolveStage(rawStage);
+
+  if (!stage) {
+    console.warn(
+      `⚠️ Unknown APP_STAGE "${rawStage}", fallback to "${APP_STAGES.RESULTS}"`,
+    );
+
+    return APP_STAGES.RESULTS;
+  }
+
+  return stage;
+};
+
+let sessionCounter = 1;
+const appStageState = {
+  stage: readInitialStage(),
+  sessionId: String(sessionCounter),
+};
+
+const getAppStageSnapshot = () => ({
+  stage: appStageState.stage,
+  session_id: appStageState.sessionId,
+});
+
+const setAppStage = (stage) => {
+  appStageState.stage = stage;
+
+  if (stage === APP_STAGES.ZERO) {
+    sessionCounter += 1;
+    appStageState.sessionId = String(sessionCounter);
+  }
+
+  return getAppStageSnapshot();
+};
+
+const buildCameraMessage = () => ({
+  type: "camera",
+  camera_x_size: 480,
+  camera_y_size: 640,
+});
+
+const buildEmptyFaceCoordsMessage = () => ({
+  type: "facecoords",
+  x1: null,
+  x2: null,
+  y1: null,
+  y2: null,
+});
+
+const buildFaceCoordsMessage = () => ({
+  type: "facecoords",
+  x1: 221.44,
+  x2: 320.83,
+  y1: 190.42,
+  y2: 310.32,
+});
+
+const buildTechMessage = () => {
+  const isZeroStage = appStageState.stage === APP_STAGES.ZERO;
+
+  return {
+    type: "tech",
+    ppg_progress: isZeroStage ? 0 : 1,
+    proximity: isZeroStage ? 0 : 0.4,
+    distance_state: isZeroStage ? "far" : "close",
+    session_id: appStageState.sessionId,
+  };
+};
+
+const openApiDocument = {
+  openapi: "3.0.0",
+  info: {
+    title: "GigaDoc Frontend Stub Sockets",
+    version: "1.0.0",
+    description: "Моковый сервер для прогонки экранных этапов приложения.",
+  },
+  servers: [{ url: `http://localhost:${PORT}` }],
+  paths: {
+    "/stage": {
+      get: {
+        summary: "Текущий экранный этап мокового сервера",
+        tags: ["Stages"],
+        responses: {
+          200: {
+            description: "Текущий stage и session_id",
+          },
+        },
+      },
+    },
+    "/stage/{stage}": {
+      get: {
+        summary: "Переключить экранный этап",
+        tags: ["Stages"],
+        parameters: [
+          {
+            name: "stage",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+              enum: ["zero", "0", "start", "none", "results", "result"],
+            },
+            description:
+              "zero/0/start/none запускает новую сессию без лица и без отправки params; results возвращает обычный поток с params.",
+          },
+        ],
+        responses: {
+          200: {
+            description: "Stage переключен",
+          },
+          400: {
+            description: "Неизвестный stage",
+          },
+        },
+      },
+    },
+    "/devices": {
+      get: {
+        summary: "Получить моковый список микрофонов и камер",
+        tags: ["Devices"],
+        responses: {
+          200: {
+            description: "Список устройств",
+          },
+        },
+      },
+    },
+    "/devices/set": {
+      get: {
+        summary: "Выбрать активные микрофон и камеру",
+        tags: ["Devices"],
+        parameters: [
+          {
+            name: "mic",
+            in: "query",
+            schema: { type: "string" },
+          },
+          {
+            name: "camera",
+            in: "query",
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          200: {
+            description: "Обновленное состояние устройств",
+          },
+        },
+      },
+    },
+  },
+};
 
 /* ===========================
    DEVICES MOCK HELPERS (HTTP ONLY)
@@ -70,7 +252,38 @@ let devicesState = buildDevices();
 =========================== */
 
 app.get("/", (req, res) => {
-  res.send("WebSocket-сервер работает");
+  res.send(`WebSocket-сервер работает. Swagger: http://localhost:${PORT}/api-docs`);
+});
+
+app.get("/openapi.json", (req, res) => {
+  res.json(openApiDocument);
+});
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openApiDocument));
+
+// GET /stage
+app.get("/stage", (req, res) => {
+  res.json(getAppStageSnapshot());
+});
+
+// GET /stage/zero или /stage/0 — новая сессия без лица и без отправки params.
+// GET /stage/results — обычный поток с params/facecoords/progress=1.
+app.get("/stage/:stage", (req, res) => {
+  const stage = resolveStage(req.params.stage);
+
+  if (!stage) {
+    res.status(400).json({
+      error: "Unknown stage",
+      allowed: Object.keys(STAGE_ALIASES),
+      current: getAppStageSnapshot(),
+    });
+
+    return;
+  }
+
+  const snapshot = setAppStage(stage);
+  console.log("🎬 Stage switched:", snapshot);
+  res.json(snapshot);
 });
 
 // GET /devices
@@ -135,28 +348,31 @@ wss.on("connection", (ws) => {
       let message = undefined;
       switch (toggle) {
         case 0:
-          message = {
-            type: "camera",
-            camera_x_size: 480,
-            camera_y_size: 640,
-          };
+          message = buildCameraMessage();
           break;
 
         case 1:
+          if (appStageState.stage === APP_STAGES.ZERO) {
+            message = buildEmptyFaceCoordsMessage();
+            break;
+          }
+
           message = {
             type: "params",
             age: { value: 31 },
-            real_age: { value: 60 },
+            real_age: { value: 20 },
             age_std: { value: "2" },
+            heart_rate: {
+  value: 120,
+  },
 
             bmi: {
-              value: 42.95459959,
+              value: 15.95459959,
               status: "deviation",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
                 { from: 25, to: 30, status: "problem" },
-                { from: 25, to: 45, status: "serious" },
               ],
             },
 
@@ -184,7 +400,7 @@ wss.on("connection", (ws) => {
 
             cardiac_age: {
               value: 47,
-              status: "deviation",
+              status: "normal",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
@@ -199,8 +415,8 @@ wss.on("connection", (ws) => {
             },
 
             diabetes: {
-              value: 0.047,
-              status: "deviation",
+              value: 20,
+              status: "normal",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
@@ -245,6 +461,17 @@ wss.on("connection", (ws) => {
               ],
             },
 
+            hematocrit: {
+              status: "normal",
+              value: 42.5,
+              step_values: [
+                { from: 20, to: 36, status: "deviation" },
+                { from: 36, to: 48, status: "normal" },
+                { from: 48, to: 55, status: "problem" },
+                { from: 55, to: 65, status: "serious" },
+              ],
+            },
+
             glucose: {
               status: "deviation",
               value: 17.8,
@@ -266,19 +493,16 @@ wss.on("connection", (ws) => {
                 { from: 25, to: 45, status: "serious" },
               ],
             },
-
-            heart_rate: { value: null, status: null },
             raw_ppg: { value: [10, 160, 30, 0, 160, 50, 160, 0] },
             gender: { value: 0 },
 
             lower_ap: {
-              value: 130,
-              status: "deviation",
+              value: 29,
+              status: "problem",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
                 { from: 25, to: 30, status: "problem" },
-                { from: 25, to: 45, status: "serious" },
               ],
             },
 
@@ -316,18 +540,17 @@ wss.on("connection", (ws) => {
             },
 
             stress: {
-              value: 999.33333333333334,
-              status: "serious",
+              value: 25,
+              status: "problem",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
                 { from: 25, to: 30, status: "problem" },
-                { from: 25, to: 45, status: "serious" },
               ],
             },
 
             upper_ap: {
-              value: 120,
+              value: 15,
               status: "deviation",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
@@ -337,8 +560,8 @@ wss.on("connection", (ws) => {
               ],
             },
 
-            lpa50: {
-              value: 29.8,
+            lpa: {
+              value: 20,
               status: "normal",
               step_values: [
                 { from: 0, to: 30, status: "normal" },
@@ -347,20 +570,20 @@ wss.on("connection", (ws) => {
               ],
             },
 
-            ldh_chol: {
-              value: 110,
-              status: "deviation",
+            ldl_chol: {
+              value: 2.4,
+              status: "normal",
               step_values: [
-                { from: 14, to: 18.5, status: "deviation" },
-                { from: 18.5, to: 25, status: "normal" },
-                { from: 25, to: 30, status: "problem" },
-                { from: 25, to: 45, status: "serious" },
+                { from: 0, to: 3, status: "normal" },
+                { from: 3, to: 4, status: "deviation" },
+                { from: 4, to: 5, status: "problem" },
+                { from: 5, to: 7, status: "serious" },
               ],
             },
 
             cardiac_risk: {
-              value: 18.5,
-              status: "deviation",
+              value: 20,
+              status: "normal",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
@@ -370,57 +593,62 @@ wss.on("connection", (ws) => {
             },
 
             atherosclerosis_risk: {
-              value: 120,
-              status: "deviation",
+              value: 20,
+              status: "normal",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
                 { from: 25, to: 30, status: "problem" },
-                { from: 25, to: 45, status: "serious" },
               ],
             },
 
             ag_risk: {
-              value: 120,
-              status: "deviation",
+              value: 20,
+              status: "normal",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
                 { from: 25, to: 30, status: "problem" },
-                { from: 25, to: 45, status: "serious" },
               ],
             },
 
             hypoxia_risk: {
-              value: 120,
-              status: "deviation",
+              value: 20,
+              status: "normal",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
                 { from: 25, to: 30, status: "problem" },
-                { from: 25, to: 45, status: "serious" },
+              ],
+            },
+
+            anemia_risk: {
+              value: 20.2,
+              status: "normal",
+              step_values: [
+                { from: 0, to: 25, status: "normal" },
+                { from: 25, to: 50, status: "deviation" },
+                { from: 50, to: 75, status: "problem" },
               ],
             },
 
             hdl_chol: {
-              value: 120,
-              status: "deviation",
+              value: 30,
+              status: "problem",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
                 { from: 25, to: 30, status: "problem" },
-                { from: 25, to: 45, status: "serious" },
               ],
             },
 
             triglycerides: {
-              value: 120,
+              value: 14,
               status: "deviation",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
                 { from: 25, to: 30, status: "problem" },
-                { from: 25, to: 45, status: "serious" },
               ],
             },
 
@@ -430,30 +658,21 @@ wss.on("connection", (ws) => {
               step_values: [
                 { from: 0, to: 18.5, status: "deviation" },
                 { from: 1, to: 25, status: "normal" },
-                { from: 2, to: 30, status: "problem" },
+                { from: 25, to: 30, status: "problem" },
               ],
             },
           };
           break;
 
         case 2:
-          message = {
-            type: "facecoords",
-            x1: 221.44,
-            x2: 320.83,
-            y1: 190.42,
-            y2: 310.32,
-          };
+          message =
+            appStageState.stage === APP_STAGES.ZERO
+              ? buildEmptyFaceCoordsMessage()
+              : buildFaceCoordsMessage();
           break;
 
         case 3:
-          message = {
-            type: "tech",
-            ppg_progress: 1,
-            proximity: 0.4,
-            distance_state: "close",
-            session_id: "1",
-          };
+          message = buildTechMessage();
           break;
       }
 
@@ -469,7 +688,8 @@ wss.on("connection", (ws) => {
    START SERVER
 =========================== */
 
-const PORT = 8000; // ✅ чтобы совпало с SERVER_PATH
 server.listen(PORT, () => {
   console.log(`🚀 Сервер запущен на http://localhost:${PORT}`);
+  console.log(`🎬 Initial stage:`, getAppStageSnapshot());
+  console.log(`📚 Swagger: http://localhost:${PORT}/api-docs`);
 });
