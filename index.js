@@ -19,6 +19,8 @@ const wss = new WebSocket.Server({ server });
 
 const APP_STAGES = {
   ZERO: "zero",
+  FACE_DETECTED: "face-detected",
+  SCANNING: "scanning",
   RESULTS: "results",
 };
 
@@ -27,6 +29,14 @@ const STAGE_ALIASES = {
   none: APP_STAGES.ZERO,
   start: APP_STAGES.ZERO,
   zero: APP_STAGES.ZERO,
+  face: APP_STAGES.FACE_DETECTED,
+  "face-detected": APP_STAGES.FACE_DETECTED,
+  detected: APP_STAGES.FACE_DETECTED,
+  greeting: APP_STAGES.FACE_DETECTED,
+  "after-greeting": APP_STAGES.SCANNING,
+  greeted: APP_STAGES.SCANNING,
+  scan: APP_STAGES.SCANNING,
+  scanning: APP_STAGES.SCANNING,
   result: APP_STAGES.RESULTS,
   results: APP_STAGES.RESULTS,
 };
@@ -54,15 +64,113 @@ const readInitialStage = () => {
 };
 
 let sessionCounter = 1;
+const SCAN_FLOW_TIMING = {
+  idleBeforeScanMs: 5000,
+  beforeFarMs: 2000,
+  farPauseMs: 5000,
+  totalScanMs: 30000,
+  farPauseProgress: 0.05,
+};
+
+const scanFlowState = {
+  startedAt: null,
+};
+
 const appStageState = {
   stage: readInitialStage(),
   sessionId: String(sessionCounter),
 };
 
-const getAppStageSnapshot = () => ({
-  stage: appStageState.stage,
-  session_id: appStageState.sessionId,
-});
+const startScanFlow = () => {
+  scanFlowState.startedAt = Date.now();
+};
+
+const resetScanFlow = () => {
+  scanFlowState.startedAt = null;
+};
+
+if (appStageState.stage === APP_STAGES.SCANNING) {
+  startScanFlow();
+}
+
+const getScanFlowSnapshot = () => {
+  if (appStageState.stage !== APP_STAGES.SCANNING || !scanFlowState.startedAt) {
+    return null;
+  }
+
+  const elapsedMs = Date.now() - scanFlowState.startedAt;
+
+  if (elapsedMs < SCAN_FLOW_TIMING.idleBeforeScanMs) {
+    return {
+      progress: 0,
+      distance_state: "close",
+      phase: "waiting-after-greeting",
+      elapsed_ms: elapsedMs,
+    };
+  }
+
+  const scanElapsedMs = elapsedMs - SCAN_FLOW_TIMING.idleBeforeScanMs;
+
+  if (scanElapsedMs >= SCAN_FLOW_TIMING.totalScanMs) {
+    appStageState.stage = APP_STAGES.RESULTS;
+    resetScanFlow();
+
+    return {
+      progress: 1,
+      distance_state: "close",
+      phase: "completed",
+      elapsed_ms: elapsedMs,
+    };
+  }
+
+  if (scanElapsedMs < SCAN_FLOW_TIMING.beforeFarMs) {
+    const progress =
+      (scanElapsedMs / SCAN_FLOW_TIMING.beforeFarMs) *
+      SCAN_FLOW_TIMING.farPauseProgress;
+
+    return {
+      progress,
+      distance_state: "close",
+      phase: "scanning-before-far",
+      elapsed_ms: elapsedMs,
+    };
+  }
+
+  const farPauseEndMs = SCAN_FLOW_TIMING.beforeFarMs + SCAN_FLOW_TIMING.farPauseMs;
+
+  if (scanElapsedMs < farPauseEndMs) {
+    return {
+      progress: SCAN_FLOW_TIMING.farPauseProgress,
+      distance_state: "far",
+      phase: "far-pause",
+      elapsed_ms: elapsedMs,
+    };
+  }
+
+  const remainingElapsedMs = scanElapsedMs - farPauseEndMs;
+  const remainingTotalMs = SCAN_FLOW_TIMING.totalScanMs - farPauseEndMs;
+  const remainingRatio = Math.min(1, remainingElapsedMs / remainingTotalMs);
+  const progress =
+    SCAN_FLOW_TIMING.farPauseProgress +
+    remainingRatio * (1 - SCAN_FLOW_TIMING.farPauseProgress);
+
+  return {
+    progress,
+    distance_state: "close",
+    phase: "scanning-after-far",
+    elapsed_ms: elapsedMs,
+  };
+};
+
+const getAppStageSnapshot = () => {
+  const scan = getScanFlowSnapshot();
+
+  return {
+    stage: appStageState.stage,
+    session_id: appStageState.sessionId,
+    scan,
+  };
+};
 
 const setAppStage = (stage) => {
   appStageState.stage = stage;
@@ -70,6 +178,12 @@ const setAppStage = (stage) => {
   if (stage === APP_STAGES.ZERO) {
     sessionCounter += 1;
     appStageState.sessionId = String(sessionCounter);
+  }
+
+  if (stage === APP_STAGES.SCANNING) {
+    startScanFlow();
+  } else {
+    resetScanFlow();
   }
 
   return getAppStageSnapshot();
@@ -99,14 +213,22 @@ const buildFaceCoordsMessage = () => ({
 
 const buildTechMessage = () => {
   const isZeroStage = appStageState.stage === APP_STAGES.ZERO;
+  const isResultsStage = appStageState.stage === APP_STAGES.RESULTS;
+  const scanSnapshot = getScanFlowSnapshot();
 
   return {
     type: "tech",
-    ppg_progress: isZeroStage ? 0 : 1,
-    proximity: isZeroStage ? 0 : 0.4,
-    distance_state: isZeroStage ? "far" : "close",
+    ppg_progress: scanSnapshot?.progress ?? (isResultsStage ? 1 : 0),
+    proximity: isZeroStage ? 0 : scanSnapshot?.distance_state === "far" ? 0.1 : 0.4,
+    distance_state: isZeroStage ? "far" : scanSnapshot?.distance_state ?? "close",
     session_id: appStageState.sessionId,
   };
+};
+
+const shouldSendParamsMessage = () => {
+  getScanFlowSnapshot();
+
+  return appStageState.stage === APP_STAGES.RESULTS;
 };
 
 const openApiDocument = {
@@ -140,10 +262,25 @@ const openApiDocument = {
             required: true,
             schema: {
               type: "string",
-              enum: ["zero", "0", "start", "none", "results", "result"],
+              enum: [
+                "zero",
+                "0",
+                "start",
+                "none",
+                "face-detected",
+                "face",
+                "detected",
+                "greeting",
+                "scanning",
+                "scan",
+                "greeted",
+                "after-greeting",
+                "results",
+                "result",
+              ],
             },
             description:
-              "zero/0/start/none запускает новую сессию без лица и без отправки params; results возвращает обычный поток с params.",
+              "zero/0/start/none запускает новую сессию без лица и без отправки params; face-detected/face/detected/greeting отдает лицо в зоне без params и progress=0; scanning/scan/greeted/after-greeting запускает сценарий после приветствия: 5 секунд ожидания, затем 30 секунд сканирования с временным far на 5%; results возвращает обычный поток с params.",
           },
         ],
         responses: {
@@ -267,6 +404,8 @@ app.get("/stage", (req, res) => {
 });
 
 // GET /stage/zero или /stage/0 — новая сессия без лица и без отправки params.
+// GET /stage/face-detected или /stage/face — лицо в зоне, params еще не отправляем.
+// GET /stage/scanning или /stage/greeted — приветствие закончено, запускаем сценарий сканирования.
 // GET /stage/results — обычный поток с params/facecoords/progress=1.
 app.get("/stage/:stage", (req, res) => {
   const stage = resolveStage(req.params.stage);
@@ -326,11 +465,34 @@ wss.on("connection", (ws) => {
   console.log("✅ Клиент подключён");
 
   ws.on("message", (message) => {
-    console.log("📩 Получено сообщение от клиента:", message.toString());
+    const rawMessage = message.toString();
+    console.log("📩 Получено сообщение от клиента:", rawMessage);
+
+    try {
+      const parsedMessage = JSON.parse(rawMessage);
+      const payload = parsedMessage?.payload;
+
+      if (
+        parsedMessage?.type === "avatar_state" &&
+        payload?.greeted === true &&
+        appStageState.stage === APP_STAGES.FACE_DETECTED
+      ) {
+        const snapshot = setAppStage(APP_STAGES.SCANNING);
+        console.log("🎬 Greeting finished, scan flow started:", snapshot);
+
+        return;
+      }
+
+      if (parsedMessage?.type === "avatar_state") {
+        return;
+      }
+    } catch (error) {
+      console.warn("⚠️ Не удалось разобрать сообщение клиента как JSON:", error.message);
+    }
 
     // ✅ devices WS-логика удалена полностью
     // оставим просто echo как раньше
-    ws.send(JSON.stringify({ type: "echo", payload: message.toString() }));
+    ws.send(JSON.stringify({ type: "echo", payload: rawMessage }));
   });
 
   ws.on("close", () => {
@@ -354,6 +516,10 @@ wss.on("connection", (ws) => {
         case 1:
           if (appStageState.stage === APP_STAGES.ZERO) {
             message = buildEmptyFaceCoordsMessage();
+            break;
+          }
+          if (!shouldSendParamsMessage()) {
+            message = buildFaceCoordsMessage();
             break;
           }
 
