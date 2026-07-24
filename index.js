@@ -71,6 +71,9 @@ const SCAN_FLOW_TIMING = {
   totalScanMs: 30000,
   farPauseProgress: 0.05,
 };
+const FULL_CYCLE_TIMING = {
+  noPersonMs: 5000,
+};
 
 const scanFlowState = {
   startedAt: null,
@@ -80,6 +83,15 @@ const appStageState = {
   stage: readInitialStage(),
   sessionId: String(sessionCounter),
 };
+
+const frontendState = {
+  resultsAnnounced: false,
+};
+
+let pendingFaceDetectionTimeout = null;
+
+const shouldMockMicrophoneListening = () =>
+  appStageState.stage === APP_STAGES.RESULTS && frontendState.resultsAnnounced;
 
 const startScanFlow = () => {
   scanFlowState.startedAt = Date.now();
@@ -175,6 +187,10 @@ const getAppStageSnapshot = () => {
 const setAppStage = (stage) => {
   appStageState.stage = stage;
 
+  if (stage !== APP_STAGES.RESULTS) {
+    frontendState.resultsAnnounced = false;
+  }
+
   if (stage === APP_STAGES.ZERO) {
     sessionCounter += 1;
     appStageState.sessionId = String(sessionCounter);
@@ -187,6 +203,38 @@ const setAppStage = (stage) => {
   }
 
   return getAppStageSnapshot();
+};
+
+const startFullCycle = () => {
+  if (pendingFaceDetectionTimeout) {
+    clearTimeout(pendingFaceDetectionTimeout);
+  }
+
+  const snapshot = setAppStage(APP_STAGES.ZERO);
+  const scheduledSessionId = snapshot.session_id;
+
+  pendingFaceDetectionTimeout = setTimeout(() => {
+    pendingFaceDetectionTimeout = null;
+
+    if (
+      appStageState.stage !== APP_STAGES.ZERO ||
+      appStageState.sessionId !== scheduledSessionId
+    ) {
+      return;
+    }
+
+    const nextSnapshot = setAppStage(APP_STAGES.FACE_DETECTED);
+    console.log("👤 Full cycle: face detected:", nextSnapshot);
+  }, FULL_CYCLE_TIMING.noPersonMs);
+
+  return {
+    ...snapshot,
+    cycle: {
+      status: "started",
+      next_stage: APP_STAGES.FACE_DETECTED,
+      next_stage_in_ms: FULL_CYCLE_TIMING.noPersonMs,
+    },
+  };
 };
 
 const buildCameraMessage = () => ({
@@ -215,6 +263,7 @@ const buildTechMessage = () => {
   const isZeroStage = appStageState.stage === APP_STAGES.ZERO;
   const isResultsStage = appStageState.stage === APP_STAGES.RESULTS;
   const scanSnapshot = getScanFlowSnapshot();
+  const isMicrophoneListening = shouldMockMicrophoneListening();
 
   return {
     type: "tech",
@@ -222,6 +271,8 @@ const buildTechMessage = () => {
     proximity: isZeroStage ? 0 : scanSnapshot?.distance_state === "far" ? 0.1 : 0.4,
     distance_state: isZeroStage ? "far" : scanSnapshot?.distance_state ?? "close",
     session_id: appStageState.sessionId,
+    mic_on: isMicrophoneListening,
+    mic_in_progress: isMicrophoneListening,
   };
 };
 
@@ -240,6 +291,19 @@ const openApiDocument = {
   },
   servers: [{ url: `http://localhost:${PORT}` }],
   paths: {
+    "/cycle": {
+      get: {
+        summary: "Запустить полный пользовательский цикл",
+        tags: ["Stages"],
+        description:
+          "Создает новую сессию без человека, через 5 секунд автоматически показывает лицо, после приветствия запускает сканирование и затем отдает результаты.",
+        responses: {
+          200: {
+            description: "Полный цикл запущен",
+          },
+        },
+      },
+    },
     "/stage": {
       get: {
         summary: "Текущий экранный этап мокового сервера",
@@ -398,6 +462,14 @@ app.get("/openapi.json", (req, res) => {
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
+// GET /cycle — одна ручка для полного сценария:
+// никого нет -> лицо -> приветствие -> сканирование -> результаты.
+app.get("/cycle", (req, res) => {
+  const snapshot = startFullCycle();
+  console.log("🎬 Full cycle started:", snapshot);
+  res.json(snapshot);
+});
+
 // GET /stage
 app.get("/stage", (req, res) => {
   res.json(getAppStageSnapshot());
@@ -484,6 +556,13 @@ wss.on("connection", (ws) => {
       }
 
       if (parsedMessage?.type === "avatar_state") {
+        const announcedResults = payload?.resultsAnnounced === true;
+        frontendState.resultsAnnounced = announcedResults;
+
+        if (announcedResults && appStageState.stage === APP_STAGES.RESULTS) {
+          console.log("🎙 Results announced, mock microphone listening enabled");
+        }
+
         return;
       }
     } catch (error) {
@@ -659,6 +738,17 @@ wss.on("connection", (ws) => {
                 { from: 25, to: 45, status: "serious" },
               ],
             },
+
+            saturation: {
+              value: 98,
+              status: "normal",
+              step_values: [
+                { from: 85, to: 90, status: "serious" },
+                { from: 90, to: 95, status: "problem" },
+                { from: 95, to: 100, status: "normal" },
+              ],
+            },
+
             raw_ppg: { value: [10, 160, 30, 0, 160, 50, 160, 0] },
             gender: { value: 0 },
 
