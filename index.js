@@ -74,6 +74,11 @@ const SCAN_FLOW_TIMING = {
 const FULL_CYCLE_TIMING = {
   noPersonMs: 5000,
 };
+const DASHBOARD_NAVIGATION_DEMO_TIMING = {
+  firstCommandDelayMs: 4000,
+  betweenCommandsMs: 6000,
+};
+const DASHBOARD_NAVIGATION_DEMO_CATEGORY_ORDER = ["heart", "risks"];
 
 const scanFlowState = {
   startedAt: null,
@@ -536,6 +541,92 @@ app.get("/devices/set", (req, res) => {
 wss.on("connection", (ws) => {
   console.log("✅ Клиент подключён");
 
+  let dashboardCapabilities = null;
+  let dashboardNavigationDemoScheduled = false;
+  let nextDashboardCommandId = 1;
+  const dashboardNavigationTimers = new Set();
+
+  const resetDashboardNavigationDemo = () => {
+    dashboardNavigationTimers.forEach(clearTimeout);
+    dashboardNavigationTimers.clear();
+    dashboardNavigationDemoScheduled = false;
+    nextDashboardCommandId = 1;
+  };
+
+  const sendDashboardCategoryCommand = (categoryKey) => {
+    if (
+      ws.readyState !== WebSocket.OPEN ||
+      appStageState.stage !== APP_STAGES.RESULTS ||
+      !frontendState.resultsAnnounced
+    ) {
+      return;
+    }
+
+    const command = {
+      type: "dashboard_navigation",
+      command_id: nextDashboardCommandId,
+      target: {
+        kind: "category",
+        key: categoryKey,
+      },
+    };
+
+    nextDashboardCommandId += 1;
+    ws.send(JSON.stringify(command));
+    console.log("🧭 Отправлена моковая команда dashboard:", command);
+  };
+
+  const scheduleDashboardNavigationDemo = () => {
+    if (
+      dashboardNavigationDemoScheduled ||
+      !dashboardCapabilities ||
+      appStageState.stage !== APP_STAGES.RESULTS ||
+      !frontendState.resultsAnnounced
+    ) {
+      return;
+    }
+
+    const availableCategoryKeys = dashboardCapabilities.categories.map(
+      (category) => category.key,
+    );
+    const preferredCategoryKeys = DASHBOARD_NAVIGATION_DEMO_CATEGORY_ORDER.filter(
+      (categoryKey) => availableCategoryKeys.includes(categoryKey),
+    );
+    const categoryKeys = [
+      ...preferredCategoryKeys,
+      ...availableCategoryKeys.filter(
+        (categoryKey) => !preferredCategoryKeys.includes(categoryKey),
+      ),
+    ].slice(0, 2);
+
+    if (categoryKeys.length === 0) {
+      console.warn("⚠️ В dashboard_capabilities нет категорий для моковой навигации");
+
+      return;
+    }
+
+    dashboardNavigationDemoScheduled = true;
+
+    categoryKeys.forEach((categoryKey, index) => {
+      const delayMs =
+        DASHBOARD_NAVIGATION_DEMO_TIMING.firstCommandDelayMs +
+        index * DASHBOARD_NAVIGATION_DEMO_TIMING.betweenCommandsMs;
+      const timer = setTimeout(() => {
+        dashboardNavigationTimers.delete(timer);
+        sendDashboardCategoryCommand(categoryKey);
+      }, delayMs);
+
+      dashboardNavigationTimers.add(timer);
+    });
+
+    console.log("🗓 Запланирована моковая dashboard-навигация:", {
+      categories: categoryKeys,
+      first_command_in_ms:
+        DASHBOARD_NAVIGATION_DEMO_TIMING.firstCommandDelayMs,
+      interval_ms: DASHBOARD_NAVIGATION_DEMO_TIMING.betweenCommandsMs,
+    });
+  };
+
   ws.on("message", (message) => {
     const rawMessage = message.toString();
     console.log("📩 Получено сообщение от клиента:", rawMessage);
@@ -543,6 +634,36 @@ wss.on("connection", (ws) => {
     try {
       const parsedMessage = JSON.parse(rawMessage);
       const payload = parsedMessage?.payload;
+
+      if (parsedMessage?.type === "dashboard_capabilities") {
+        const categories = Array.isArray(payload?.categories)
+          ? payload.categories.filter(
+              (category) =>
+                typeof category?.key === "string" &&
+                Array.isArray(category?.parameter_keys),
+            )
+          : [];
+        const gigadocModes = Array.isArray(payload?.gigadoc?.modes)
+          ? payload.gigadoc.modes.filter(
+              (mode) =>
+                typeof mode?.key === "string" &&
+                Array.isArray(mode?.parameter_keys),
+            )
+          : [];
+
+        dashboardCapabilities = {
+          categories,
+          gigadoc: {
+            key: payload?.gigadoc?.key,
+            modes: gigadocModes,
+          },
+        };
+
+        console.log("✅ Dashboard capabilities приняты:", dashboardCapabilities);
+        scheduleDashboardNavigationDemo();
+
+        return;
+      }
 
       if (
         parsedMessage?.type === "avatar_state" &&
@@ -561,6 +682,9 @@ wss.on("connection", (ws) => {
 
         if (announcedResults && appStageState.stage === APP_STAGES.RESULTS) {
           console.log("🎙 Results announced, mock microphone listening enabled");
+          scheduleDashboardNavigationDemo();
+        } else if (!announcedResults) {
+          resetDashboardNavigationDemo();
         }
 
         return;
@@ -575,6 +699,7 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
+    resetDashboardNavigationDemo();
     console.log("❌ Клиент отключился");
   });
 
