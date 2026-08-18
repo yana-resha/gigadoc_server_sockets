@@ -287,6 +287,55 @@ const shouldSendParamsMessage = () => {
   return appStageState.stage === APP_STAGES.RESULTS;
 };
 
+const SCANDERM_PARAMETER_KEYS = [
+  "skin_uniformity",
+  "elasticity",
+  "dark_circles",
+  "oily_shine",
+  "pores",
+  "dullness",
+  "redness",
+  "comedons",
+  "scars",
+  "dehydration",
+  "inflammatory",
+  "wrinkles",
+];
+
+const SCANDERM_PHOTO_URL =
+  "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80";
+
+const getRandomInt = (from, to) =>
+  Math.floor(Math.random() * (to - from + 1)) + from;
+
+const buildScandermParam = () => {
+  const status = ["normal", "deviation", "problem", "serious"][getRandomInt(0, 3)];
+  const rangesByStatus = {
+    normal: [40, 70],
+    deviation: [8, 39],
+    problem: [71, 88],
+    serious: [89, 98],
+  };
+  const [from, to] = rangesByStatus[status];
+
+  return {
+    value: getRandomInt(from, to),
+    status,
+    photo: SCANDERM_PHOTO_URL,
+    step_values: [
+      { from: 0, to: 40, status: "deviation" },
+      { from: 40, to: 70, status: "normal" },
+      { from: 70, to: 88, status: "problem" },
+      { from: 88, to: 100, status: "serious" },
+    ],
+  };
+};
+
+const buildScandermParams = () =>
+  Object.fromEntries(
+    SCANDERM_PARAMETER_KEYS.map((key) => [key, buildScandermParam()]),
+  );
+
 const openApiDocument = {
   openapi: "3.0.0",
   info: {
@@ -544,6 +593,7 @@ wss.on("connection", (ws) => {
   let dashboardCapabilities = null;
   let dashboardNavigationDemoScheduled = false;
   let nextDashboardCommandId = 1;
+  const scandermParams = buildScandermParams();
   const dashboardNavigationTimers = new Set();
 
   const resetDashboardNavigationDemo = () => {
@@ -1042,6 +1092,8 @@ wss.on("connection", (ws) => {
                 { from: 25, to: 30, status: "problem" },
               ],
             },
+
+            ...scandermParams,
           };
           break;
 
