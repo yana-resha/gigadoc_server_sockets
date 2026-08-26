@@ -603,7 +603,7 @@ wss.on("connection", (ws) => {
     nextDashboardCommandId = 1;
   };
 
-  const sendDashboardCategoryCommand = (categoryKey) => {
+  const sendDashboardNavigationCommand = (target) => {
     if (
       ws.readyState !== WebSocket.OPEN ||
       appStageState.stage !== APP_STAGES.RESULTS ||
@@ -615,10 +615,7 @@ wss.on("connection", (ws) => {
     const command = {
       type: "dashboard_navigation",
       command_id: nextDashboardCommandId,
-      target: {
-        kind: "category",
-        key: categoryKey,
-      },
+      target,
     };
 
     nextDashboardCommandId += 1;
@@ -655,22 +652,44 @@ wss.on("connection", (ws) => {
       return;
     }
 
+    const firstCategory = dashboardCapabilities.categories.find(
+      (category) => category.key === categoryKeys[0],
+    );
+    const parameterKeys = (firstCategory?.parameter_keys ?? [])
+      .filter((key) => typeof key === "string")
+      .slice(0, 2);
+    const availableGigaDocModeKeys = dashboardCapabilities.gigadoc.modes.map(
+      (mode) => mode.key,
+    );
+    const hasGigaDocChatMode = availableGigaDocModeKeys.includes("chat");
+    const hasGigaDocMedMode = availableGigaDocModeKeys.includes("med");
+    const navigationTargets = [
+      ...categoryKeys.map((key) => ({ kind: "category", key })),
+      ...parameterKeys.map((key) => ({ kind: "param", key })),
+      ...(parameterKeys.length > 0 && categoryKeys[1]
+        ? [{ kind: "category", key: categoryKeys[1] }]
+        : []),
+      ...(hasGigaDocChatMode ? [{ kind: "gigadoc", mode: "chat" }] : []),
+      ...(hasGigaDocMedMode ? [{ kind: "gigadoc", mode: "med" }] : []),
+      ...(categoryKeys[0] ? [{ kind: "category", key: categoryKeys[0] }] : []),
+    ];
+
     dashboardNavigationDemoScheduled = true;
 
-    categoryKeys.forEach((categoryKey, index) => {
+    navigationTargets.forEach((target, index) => {
       const delayMs =
         DASHBOARD_NAVIGATION_DEMO_TIMING.firstCommandDelayMs +
         index * DASHBOARD_NAVIGATION_DEMO_TIMING.betweenCommandsMs;
       const timer = setTimeout(() => {
         dashboardNavigationTimers.delete(timer);
-        sendDashboardCategoryCommand(categoryKey);
+        sendDashboardNavigationCommand(target);
       }, delayMs);
 
       dashboardNavigationTimers.add(timer);
     });
 
     console.log("🗓 Запланирована моковая dashboard-навигация:", {
-      categories: categoryKeys,
+      targets: navigationTargets,
       first_command_in_ms:
         DASHBOARD_NAVIGATION_DEMO_TIMING.firstCommandDelayMs,
       interval_ms: DASHBOARD_NAVIGATION_DEMO_TIMING.betweenCommandsMs,
