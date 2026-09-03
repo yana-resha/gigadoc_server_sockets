@@ -41,7 +41,8 @@ const STAGE_ALIASES = {
   results: APP_STAGES.RESULTS,
 };
 
-const resolveStage = (rawStage) => STAGE_ALIASES[String(rawStage).toLowerCase()];
+const resolveStage = (rawStage) =>
+  STAGE_ALIASES[String(rawStage).toLowerCase()];
 
 const readInitialStage = () => {
   const stageArg = process.argv.find((arg) => arg.startsWith("--stage="));
@@ -75,10 +76,12 @@ const FULL_CYCLE_TIMING = {
   noPersonMs: 5000,
 };
 const DASHBOARD_NAVIGATION_DEMO_TIMING = {
-  firstCommandDelayMs: 4000,
-  betweenCommandsMs: 6000,
+  firstCommandDelayMs: 3000,
+  betweenCommandsMs: 4000,
 };
 const DASHBOARD_NAVIGATION_DEMO_CATEGORY_ORDER = ["heart", "risks"];
+const DASHBOARD_NAVIGATION_DEMO_GIGADOC_PARAM_ORDER = ["bmi", "age"];
+const DASHBOARD_NAVIGATION_DEMO_METABOLISM_PARAM_ORDER = ["cholesterol"];
 
 const scanFlowState = {
   startedAt: null,
@@ -153,7 +156,8 @@ const getScanFlowSnapshot = () => {
     };
   }
 
-  const farPauseEndMs = SCAN_FLOW_TIMING.beforeFarMs + SCAN_FLOW_TIMING.farPauseMs;
+  const farPauseEndMs =
+    SCAN_FLOW_TIMING.beforeFarMs + SCAN_FLOW_TIMING.farPauseMs;
 
   if (scanElapsedMs < farPauseEndMs) {
     return {
@@ -273,8 +277,14 @@ const buildTechMessage = () => {
   return {
     type: "tech",
     ppg_progress: scanSnapshot?.progress ?? (isResultsStage ? 1 : 0),
-    proximity: isZeroStage ? 0 : scanSnapshot?.distance_state === "far" ? 0.1 : 0.4,
-    distance_state: isZeroStage ? "far" : scanSnapshot?.distance_state ?? "close",
+    proximity: isZeroStage
+      ? 0
+      : scanSnapshot?.distance_state === "far"
+        ? 0.1
+        : 0.4,
+    distance_state: isZeroStage
+      ? "far"
+      : (scanSnapshot?.distance_state ?? "close"),
     session_id: appStageState.sessionId,
     mic_on: isMicrophoneListening,
     mic_in_progress: isMicrophoneListening,
@@ -309,7 +319,9 @@ const getRandomInt = (from, to) =>
   Math.floor(Math.random() * (to - from + 1)) + from;
 
 const buildScandermParam = () => {
-  const status = ["normal", "deviation", "problem", "serious"][getRandomInt(0, 3)];
+  const status = ["normal", "deviation", "problem", "serious"][
+    getRandomInt(0, 3)
+  ];
   const rangesByStatus = {
     normal: [40, 70],
     deviation: [8, 39],
@@ -507,7 +519,9 @@ let devicesState = buildDevices();
 =========================== */
 
 app.get("/", (req, res) => {
-  res.send(`WebSocket-сервер работает. Swagger: http://localhost:${PORT}/api-docs`);
+  res.send(
+    `WebSocket-сервер работает. Swagger: http://localhost:${PORT}/api-docs`,
+  );
 });
 
 app.get("/openapi.json", (req, res) => {
@@ -636,18 +650,21 @@ wss.on("connection", (ws) => {
     const availableCategoryKeys = dashboardCapabilities.categories.map(
       (category) => category.key,
     );
-    const preferredCategoryKeys = DASHBOARD_NAVIGATION_DEMO_CATEGORY_ORDER.filter(
-      (categoryKey) => availableCategoryKeys.includes(categoryKey),
-    );
+    const preferredCategoryKeys =
+      DASHBOARD_NAVIGATION_DEMO_CATEGORY_ORDER.filter((categoryKey) =>
+        availableCategoryKeys.includes(categoryKey),
+      );
     const categoryKeys = [
       ...preferredCategoryKeys,
       ...availableCategoryKeys.filter(
         (categoryKey) => !preferredCategoryKeys.includes(categoryKey),
       ),
-    ].slice(0, 2);
+    ];
 
     if (categoryKeys.length === 0) {
-      console.warn("⚠️ В dashboard_capabilities нет категорий для моковой навигации");
+      console.warn(
+        "⚠️ В dashboard_capabilities нет категорий для моковой навигации",
+      );
 
       return;
     }
@@ -663,23 +680,71 @@ wss.on("connection", (ws) => {
     );
     const hasGigaDocChatMode = availableGigaDocModeKeys.includes("chat");
     const hasGigaDocMedMode = availableGigaDocModeKeys.includes("med");
-    const navigationTargets = [
+    const gigaDocMedMode = dashboardCapabilities.gigadoc.modes.find(
+      (mode) => mode.key === "med",
+    );
+    const availableGigaDocParameterKeys = (
+      gigaDocMedMode?.parameter_keys ?? []
+    ).filter((key) => typeof key === "string");
+    const gigaDocParameterKeys = [
+      ...DASHBOARD_NAVIGATION_DEMO_GIGADOC_PARAM_ORDER.filter((key) =>
+        availableGigaDocParameterKeys.includes(key),
+      ),
+      ...availableGigaDocParameterKeys.filter(
+        (key) => !DASHBOARD_NAVIGATION_DEMO_GIGADOC_PARAM_ORDER.includes(key),
+      ),
+    ].slice(0, 2);
+    const metabolismCategory = dashboardCapabilities.categories.find(
+      (category) => category.key === "metabolism",
+    );
+    const availableMetabolismParameterKeys = (
+      metabolismCategory?.parameter_keys ?? []
+    ).filter((key) => typeof key === "string");
+    const metabolismParameterKey =
+      DASHBOARD_NAVIGATION_DEMO_METABOLISM_PARAM_ORDER.find((key) =>
+        availableMetabolismParameterKeys.includes(key),
+      ) ?? availableMetabolismParameterKeys[0];
+    const canRunGigaDocParamDemo =
+      hasGigaDocChatMode &&
+      hasGigaDocMedMode &&
+      Boolean(categoryKeys[0]) &&
+      gigaDocParameterKeys.length > 0;
+    const fallbackNavigationTargets = [
       ...categoryKeys.map((key) => ({ kind: "category", key })),
       ...parameterKeys.map((key) => ({ kind: "param", key })),
-      ...(parameterKeys.length > 0 && categoryKeys[1]
-        ? [{ kind: "category", key: categoryKeys[1] }]
-        : []),
       ...(hasGigaDocChatMode ? [{ kind: "gigadoc", mode: "chat" }] : []),
       ...(hasGigaDocMedMode ? [{ kind: "gigadoc", mode: "med" }] : []),
-      ...(categoryKeys[0] ? [{ kind: "category", key: categoryKeys[0] }] : []),
     ];
+    const navigationTargets = canRunGigaDocParamDemo
+      ? [
+          { kind: "gigadoc", mode: "chat" },
+          { kind: "category", key: categoryKeys[0] },
+          { kind: "param", key: gigaDocParameterKeys[0] },
+          ...categoryKeys
+            .slice(1)
+            .flatMap((key) => [
+              { kind: "category", key },
+              ...(key === "metabolism" && metabolismParameterKey
+                ? [{ kind: "param", key: metabolismParameterKey }]
+                : []),
+            ]),
+          { kind: "gigadoc", mode: "chat" },
+          {
+            kind: "param",
+            key: gigaDocParameterKeys[1] ?? gigaDocParameterKeys[0],
+          },
+        ]
+      : fallbackNavigationTargets;
+    const navigationSteps = navigationTargets.map((target, index) => ({
+      delayMs:
+        DASHBOARD_NAVIGATION_DEMO_TIMING.firstCommandDelayMs +
+        index * DASHBOARD_NAVIGATION_DEMO_TIMING.betweenCommandsMs,
+      target,
+    }));
 
     dashboardNavigationDemoScheduled = true;
 
-    navigationTargets.forEach((target, index) => {
-      const delayMs =
-        DASHBOARD_NAVIGATION_DEMO_TIMING.firstCommandDelayMs +
-        index * DASHBOARD_NAVIGATION_DEMO_TIMING.betweenCommandsMs;
+    navigationSteps.forEach(({ delayMs, target }) => {
       const timer = setTimeout(() => {
         dashboardNavigationTimers.delete(timer);
         sendDashboardNavigationCommand(target);
@@ -689,10 +754,10 @@ wss.on("connection", (ws) => {
     });
 
     console.log("🗓 Запланирована моковая dashboard-навигация:", {
-      targets: navigationTargets,
-      first_command_in_ms:
-        DASHBOARD_NAVIGATION_DEMO_TIMING.firstCommandDelayMs,
-      interval_ms: DASHBOARD_NAVIGATION_DEMO_TIMING.betweenCommandsMs,
+      scenario: canRunGigaDocParamDemo
+        ? "collapsed-chat -> GigaDoc param -> active-chat -> GigaDoc param"
+        : "fallback",
+      steps: navigationSteps,
     });
   };
 
@@ -728,7 +793,10 @@ wss.on("connection", (ws) => {
           },
         };
 
-        console.log("✅ Dashboard capabilities приняты:", dashboardCapabilities);
+        console.log(
+          "✅ Dashboard capabilities приняты:",
+          dashboardCapabilities,
+        );
         scheduleDashboardNavigationDemo();
 
         return;
@@ -750,7 +818,9 @@ wss.on("connection", (ws) => {
         frontendState.resultsAnnounced = announcedResults;
 
         if (announcedResults && appStageState.stage === APP_STAGES.RESULTS) {
-          console.log("🎙 Results announced, mock microphone listening enabled");
+          console.log(
+            "🎙 Results announced, mock microphone listening enabled",
+          );
           scheduleDashboardNavigationDemo();
         } else if (!announcedResults) {
           resetDashboardNavigationDemo();
@@ -759,7 +829,10 @@ wss.on("connection", (ws) => {
         return;
       }
     } catch (error) {
-      console.warn("⚠️ Не удалось разобрать сообщение клиента как JSON:", error.message);
+      console.warn(
+        "⚠️ Не удалось разобрать сообщение клиента как JSON:",
+        error.message,
+      );
     }
 
     // ✅ devices WS-логика удалена полностью
@@ -802,8 +875,8 @@ wss.on("connection", (ws) => {
             real_age: { value: 20 },
             age_std: { value: "2" },
             heart_rate: {
-  value: 120,
-  },
+              value: 120,
+            },
 
             bmi: {
               value: 15.95459959,
