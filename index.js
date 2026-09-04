@@ -1,5 +1,6 @@
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const WebSocket = require("ws");
 const cors = require("cors");
 const swaggerUi = require("swagger-ui-express");
@@ -457,6 +458,25 @@ const openApiDocument = {
         },
       },
     },
+    "/video_feed": {
+      get: {
+        summary: "Получить моковый кадр видеопотока",
+        tags: ["Video"],
+        responses: {
+          200: {
+            description: "PNG-изображение видеопотока",
+            content: {
+              "image/png": {
+                schema: {
+                  type: "string",
+                  format: "binary",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   },
 };
 
@@ -529,6 +549,11 @@ app.get("/openapi.json", (req, res) => {
 });
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openApiDocument));
+
+// GET /video_feed — статичный мок кадра с камеры.
+app.get("/video_feed", (req, res) => {
+  res.sendFile(path.join(__dirname, "assets", "video-feed.png"));
+});
 
 // GET /cycle — одна ручка для полного сценария:
 // никого нет -> лицо -> приветствие -> сканирование -> результаты.
