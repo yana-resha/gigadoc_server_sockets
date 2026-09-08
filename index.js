@@ -14,8 +14,12 @@ const USER_SPEECH_DURATION_MS = 2_000;
 const THINKING_DURATION_MS = 2_000;
 const MEASUREMENT_START_DELAY_MS = 1_000;
 const MEASUREMENT_RESULTS_DELAY_MS = 5_000;
-const NEXT_MEASUREMENT_DELAY_MS = 1_000;
 const MEASUREMENT_PLAN = ["skin", "heart_and_vessels", "vision"];
+const MEASUREMENT_DEVIATIONS = {
+  skin: 3,
+  heart_and_vessels: 2,
+  vision: 1,
+};
 
 let sessionCounter = 0;
 
@@ -66,6 +70,17 @@ const buildMeasurementResults = (completedMeasurements) =>
     completed: completedMeasurements.has(type),
   }));
 
+const buildResultsIntro = (completedMeasurements) =>
+  MEASUREMENT_PLAN.map((type) => {
+    const completed = completedMeasurements.has(type);
+
+    return {
+      type,
+      completed,
+      deviations_count: completed ? MEASUREMENT_DEVIATIONS[type] : 0,
+    };
+  });
+
 const buildMeasurementResultsSpeechKey = (completedMeasurements) =>
   JSON.stringify({
     skin: completedMeasurements.has("skin"),
@@ -107,6 +122,8 @@ const resetClientSession = (socket) => {
   client.measurementStarted = false;
   client.completedMeasurements.clear();
   client.awaitingResultsSpeechKey = null;
+  client.resultsIntroSent = false;
+  client.resultsIntroAcknowledged = false;
 
   return sendJson(socket, buildTechMessage(null));
 };
@@ -166,6 +183,8 @@ const startCycle = (socket, declineMeasurements = false) => {
   client.measurementStarted = false;
   client.completedMeasurements.clear();
   client.awaitingResultsSpeechKey = null;
+  client.resultsIntroSent = false;
+  client.resultsIntroAcknowledged = false;
 
   sendJson(socket, buildTechMessage(client.sessionId));
 
@@ -216,9 +235,9 @@ const openApiDocument = {
     "/cycle": {
       get: {
         tags: ["Scenario"],
-        summary: "Запустить полный mock-сценарий",
+        summary: "Запустить mock-сценарий с одним замером",
         description:
-          "Сначала сбрасывает текущую сессию, затем создаёт новую, отдельными events переключает экраны, имитирует выбор skin, запуск замера и готовность результатов.",
+          "Сначала сбрасывает текущую сессию, затем создаёт новую, имитирует замер skin и отказ от оставшихся замеров, после чего отправляет results_intro_ready со статусами категорий и числом отклонений.",
         responses: {
           200: {
             description:
@@ -370,6 +389,8 @@ webSocketServer.on("connection", (socket) => {
     measurementStarted: false,
     completedMeasurements: new Set(),
     awaitingResultsSpeechKey: null,
+    resultsIntroSent: false,
+    resultsIntroAcknowledged: false,
     sessionId: null,
     timers: new Set(),
   };
@@ -409,6 +430,7 @@ webSocketServer.on("connection", (socket) => {
       message.payload?.measurementInstructionSpokenFor;
     const measurementResultsSpokenKey =
       message.payload?.measurementResultsSpokenKey;
+    const resultsIntroSpoken = message.payload?.resultsIntroSpoken === true;
 
     if (greetingFinished && !client.postGreetingFlowStarted) {
       client.postGreetingFlowStarted = true;
@@ -568,25 +590,39 @@ webSocketServer.on("connection", (socket) => {
 
     if (
       client.awaitingResultsSpeechKey &&
-      measurementResultsSpokenKey === client.awaitingResultsSpeechKey
+      measurementResultsSpokenKey === client.awaitingResultsSpeechKey &&
+      !client.resultsIntroSent
     ) {
       client.awaitingResultsSpeechKey = null;
-      const nextMeasurement = MEASUREMENT_PLAN.find(
-        (measurement) => !client.completedMeasurements.has(measurement),
-      );
+      client.resultsIntroSent = true;
 
-      if (!nextMeasurement) {
-        console.log(
-          `✅ Все mock-замеры завершены для сессии ${client.sessionId}`,
+      startMockUserTurn(socket, client, () => {
+        sendJson(
+          socket,
+          buildTechMessage(client.sessionId, {
+            face_in_area: true,
+            mic_on: true,
+          }),
         );
+        sendJson(
+          socket,
+          buildMeasurementEvent(client.sessionId, "results_intro_ready", {
+            results: buildResultsIntro(client.completedMeasurements),
+          }),
+        );
+      });
 
-        return;
-      }
+      return;
+    }
 
-      schedule(
-        client,
-        () => selectMeasurement(socket, client, nextMeasurement),
-        NEXT_MEASUREMENT_DELAY_MS,
+    if (
+      resultsIntroSpoken &&
+      client.resultsIntroSent &&
+      !client.resultsIntroAcknowledged
+    ) {
+      client.resultsIntroAcknowledged = true;
+      console.log(
+        `✅ Вводная по результатам озвучена для сессии ${client.sessionId}`,
       );
     }
   });
