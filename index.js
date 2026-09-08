@@ -9,6 +9,7 @@ const HOST = "127.0.0.1";
 const WEBSOCKET_PATH = "/ws_process";
 
 const FACE_IN_AREA_DELAY_MS = 1_000;
+const SESSION_RESTART_DELAY_MS = 250;
 const USER_SPEECH_DURATION_MS = 2_000;
 const THINKING_DURATION_MS = 2_000;
 const MEASUREMENT_START_DELAY_MS = 1_000;
@@ -100,6 +101,8 @@ const resetClientSession = (socket) => {
   client.scanIntroShown = false;
   client.postScanIntroFlowStarted = false;
   client.postScanSelectionFlowStarted = false;
+  client.postDeclineFlowStarted = false;
+  client.declineMeasurements = false;
   client.activeMeasurement = null;
   client.measurementStarted = false;
   client.completedMeasurements.clear();
@@ -145,7 +148,7 @@ const startMockUserTurn = (socket, client, onComplete) => {
   );
 };
 
-const startCycle = (socket) => {
+const startCycle = (socket, declineMeasurements = false) => {
   const client = clients.get(socket);
   if (!client || socket.readyState !== WebSocket.OPEN) return null;
 
@@ -157,6 +160,8 @@ const startCycle = (socket) => {
   client.scanIntroShown = false;
   client.postScanIntroFlowStarted = false;
   client.postScanSelectionFlowStarted = false;
+  client.postDeclineFlowStarted = false;
+  client.declineMeasurements = declineMeasurements;
   client.activeMeasurement = null;
   client.measurementStarted = false;
   client.completedMeasurements.clear();
@@ -183,6 +188,21 @@ const startCycle = (socket) => {
   return client.sessionId;
 };
 
+const restartCycle = async (socket, declineMeasurements = false) => {
+  const client = clients.get(socket);
+  if (!client) return null;
+
+  resetClientSession(socket);
+  client.restartVersion += 1;
+  const restartVersion = client.restartVersion;
+
+  await new Promise((resolve) => setTimeout(resolve, SESSION_RESTART_DELAY_MS));
+
+  if (client.restartVersion !== restartVersion) return null;
+
+  return startCycle(socket, declineMeasurements);
+};
+
 const openApiDocument = {
   openapi: "3.0.0",
   info: {
@@ -198,7 +218,7 @@ const openApiDocument = {
         tags: ["Scenario"],
         summary: "Запустить полный mock-сценарий",
         description:
-          "Создаёт новую сессию, отдельными events переключает экраны, имитирует выбор skin, запуск замера и готовность результатов.",
+          "Сначала сбрасывает текущую сессию, затем создаёт новую, отдельными events переключает экраны, имитирует выбор skin, запуск замера и готовность результатов.",
         responses: {
           200: {
             description:
@@ -225,6 +245,24 @@ const openApiDocument = {
         },
       },
     },
+    "/decline-measurements": {
+      post: {
+        tags: ["Scenario"],
+        summary: "Запустить сценарий отказа от замеров",
+        description:
+          "Сначала сбрасывает текущую сессию, затем создаёт новую, имитирует отказ пользователя после приветствия, отправляет event measurements_declined, а после дополнительной реплики пользователя завершает ветку event session_exit_without_measurements.",
+        responses: {
+          200: {
+            description:
+              "Сценарий отказа запущен для всех подключённых WebSocket-клиентов.",
+          },
+          409: {
+            description:
+              "Нет подключённых WebSocket-клиентов. Сценарий не запущен.",
+          },
+        },
+      },
+    },
   },
 };
 
@@ -244,7 +282,7 @@ app.get("/openapi.json", (_request, response) => {
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
-app.get("/cycle", (_request, response) => {
+app.get("/cycle", async (_request, response) => {
   const connectedSockets = [...clients.keys()].filter(
     (socket) => socket.readyState === WebSocket.OPEN,
   );
@@ -259,10 +297,39 @@ app.get("/cycle", (_request, response) => {
     return;
   }
 
-  const sessionIds = connectedSockets.map(startCycle).filter(Boolean);
+  const sessionIds = (await Promise.all(connectedSockets.map((socket) => restartCycle(socket)))).filter(
+    Boolean,
+  );
 
   response.json({
     status: "started",
+    clients: sessionIds.length,
+    session_ids: sessionIds,
+  });
+});
+
+app.post("/decline-measurements", async (_request, response) => {
+  const connectedSockets = [...clients.keys()].filter(
+    (socket) => socket.readyState === WebSocket.OPEN,
+  );
+
+  if (connectedSockets.length === 0) {
+    response.status(409).json({
+      status: "frontend_not_connected",
+      message:
+        "Сначала подключите frontend к WebSocket, затем повторно вызовите /decline-measurements.",
+    });
+
+    return;
+  }
+
+  const sessionIds = (
+    await Promise.all(connectedSockets.map((socket) => restartCycle(socket, true)))
+  ).filter(Boolean);
+
+  response.json({
+    status: "started",
+    scenario: "measurements_declined",
     clients: sessionIds.length,
     session_ids: sessionIds,
   });
@@ -296,6 +363,9 @@ webSocketServer.on("connection", (socket) => {
     scanIntroShown: false,
     postScanIntroFlowStarted: false,
     postScanSelectionFlowStarted: false,
+    postDeclineFlowStarted: false,
+    declineMeasurements: false,
+    restartVersion: 0,
     activeMeasurement: null,
     measurementStarted: false,
     completedMeasurements: new Set(),
@@ -331,6 +401,8 @@ webSocketServer.on("connection", (socket) => {
     const greetingFinished = message.payload?.greeted === true;
     const scanIntroFinished = message.payload?.scanIntroSpoken === true;
     const scanSelectionFinished = message.payload?.scanSelectionSpoken === true;
+    const measurementsDeclinedFinished =
+      message.payload?.measurementsDeclinedSpoken === true;
     const measurementInstructionFinished =
       message.payload?.measurementInstructionSpoken === true;
     const measurementInstructionSpokenFor =
@@ -342,6 +414,22 @@ webSocketServer.on("connection", (socket) => {
       client.postGreetingFlowStarted = true;
 
       startMockUserTurn(socket, client, () => {
+        if (client.declineMeasurements) {
+          sendJson(
+            socket,
+            buildTechMessage(client.sessionId, {
+              face_in_area: true,
+              mic_on: true,
+            }),
+          );
+          sendJson(
+            socket,
+            buildScenarioEvent(client.sessionId, "measurements_declined"),
+          );
+
+          return;
+        }
+
         client.scanIntroShown = true;
         sendJson(
           socket,
@@ -353,6 +441,33 @@ webSocketServer.on("connection", (socket) => {
         sendJson(
           socket,
           buildScenarioEvent(client.sessionId, "scan_intro_ready"),
+        );
+      });
+
+      return;
+    }
+
+    if (
+      measurementsDeclinedFinished &&
+      client.declineMeasurements &&
+      !client.postDeclineFlowStarted
+    ) {
+      client.postDeclineFlowStarted = true;
+
+      startMockUserTurn(socket, client, () => {
+        sendJson(
+          socket,
+          buildTechMessage(client.sessionId, {
+            face_in_area: true,
+            mic_on: true,
+          }),
+        );
+        sendJson(
+          socket,
+          buildScenarioEvent(
+            client.sessionId,
+            "session_exit_without_measurements",
+          ),
         );
       });
 
@@ -496,5 +611,8 @@ server.listen(PORT, HOST, () => {
   console.log(`🚀 VSP WebSocket stub: ws://${HOST}:${PORT}${WEBSOCKET_PATH}`);
   console.log(`📚 Swagger: http://${HOST}:${PORT}/api-docs`);
   console.log(`🎬 Запуск сценария: http://${HOST}:${PORT}/cycle`);
+  console.log(
+    `⏭️ Отказ от замеров: POST http://${HOST}:${PORT}/decline-measurements`,
+  );
   console.log(`🧹 Сброс сессии: POST http://${HOST}:${PORT}/reset`);
 });
