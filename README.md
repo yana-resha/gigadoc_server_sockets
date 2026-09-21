@@ -11,12 +11,12 @@ npm start
 npm test
 ```
 
-- WebSocket: `ws://127.0.0.1:8000/ws_process`
-- Swagger UI: `http://127.0.0.1:8000/api-docs`
-- OpenAPI JSON: `GET http://127.0.0.1:8000/openapi.json`
-- голосовой сценарий: `GET http://127.0.0.1:8000/cycle`
-- голосовой отказ: `POST http://127.0.0.1:8000/decline-measurements`
-- сброс: `POST http://127.0.0.1:8000/reset`
+- WebSocket: `ws://127.0.0.1:8081/ws/frontend/v1`
+- Swagger UI: `http://127.0.0.1:8081/api-docs`
+- OpenAPI JSON: `GET http://127.0.0.1:8081/openapi.json`
+- голосовой сценарий: `GET http://127.0.0.1:8081/cycle`
+- голосовой отказ: `POST http://127.0.0.1:8081/decline-measurements`
+- сброс: `POST http://127.0.0.1:8081/reset`
 
 Порт задаётся переменной окружения `PORT`.
 

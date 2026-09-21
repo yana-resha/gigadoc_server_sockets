@@ -19,9 +19,9 @@ const {
   transitionScenario,
 } = require("./lib/state-machine");
 
-const PORT = Number(process.env.PORT) || 8000;
+const PORT = Number(process.env.PORT) || 8081;
 const HOST = "127.0.0.1";
-const WEBSOCKET_PATH = "/ws_process";
+const WEBSOCKET_PATH = "/ws/frontend/v1";
 
 const FACE_IN_AREA_DELAY_MS = 1_000;
 const SESSION_RESTART_DELAY_MS = 250;
