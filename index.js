@@ -4,6 +4,21 @@ const express = require("express");
 const swaggerUi = require("swagger-ui-express");
 const { WebSocketServer, WebSocket } = require("ws");
 
+const { createOpenApiDocument } = require("./lib/openapi");
+const {
+  MEASUREMENT_PLAN,
+  buildMeasurementResults,
+  buildParamsMessage,
+  buildResultsIntro,
+  buildTechMessage,
+  ok,
+} = require("./lib/protocol");
+const {
+  PHASES,
+  createScenarioState,
+  transitionScenario,
+} = require("./lib/state-machine");
+
 const PORT = Number(process.env.PORT) || 8000;
 const HOST = "127.0.0.1";
 const WEBSOCKET_PATH = "/ws_process";
@@ -14,15 +29,8 @@ const USER_SPEECH_DURATION_MS = 2_000;
 const THINKING_DURATION_MS = 2_000;
 const MEASUREMENT_START_DELAY_MS = 1_000;
 const MEASUREMENT_RESULTS_DELAY_MS = 5_000;
-const MEASUREMENT_PLAN = ["skin", "heart_and_vessels", "vision"];
-const MEASUREMENT_DEVIATIONS = {
-  skin: 3,
-  heart_and_vessels: 2,
-  vision: 1,
-};
 
 let sessionCounter = 0;
-
 const clients = new Map();
 
 const createSessionId = () => {
@@ -40,46 +48,9 @@ const sendJson = (socket, message) => {
   return true;
 };
 
-const buildTechMessage = (sessionId, overrides = {}) => ({
-  status: "ok",
-  type: "tech",
-  session_id: sessionId,
-  face_in_area: false,
-  mic_on: false,
-  mic_in_progress: false,
-  i_am_thinking: false,
-  ...overrides,
-});
-
-const buildScenarioEvent = (sessionId, type) => ({
-  status: "ok",
-  type,
-  session_id: sessionId,
-});
-
-const buildMeasurementEvent = (sessionId, type, payload) => ({
-  status: "ok",
-  type,
-  session_id: sessionId,
-  ...payload,
-});
-
-const buildMeasurementResults = (completedMeasurements) =>
-  MEASUREMENT_PLAN.map((type) => ({
-    type,
-    completed: completedMeasurements.has(type),
-  }));
-
-const buildResultsIntro = (completedMeasurements) =>
-  MEASUREMENT_PLAN.map((type) => {
-    const completed = completedMeasurements.has(type);
-
-    return {
-      type,
-      completed,
-      deviations_count: completed ? MEASUREMENT_DEVIATIONS[type] : 0,
-    };
-  });
+const sendEvents = (socket, events) => {
+  events.forEach((event) => sendJson(socket, event));
+};
 
 const buildMeasurementResultsSpeechKey = (completedMeasurements) =>
   JSON.stringify({
@@ -88,33 +59,20 @@ const buildMeasurementResultsSpeechKey = (completedMeasurements) =>
     vision: completedMeasurements.has("vision"),
   });
 
-const selectMeasurement = (socket, client, measurement) => {
-  client.activeMeasurement = measurement;
-  client.measurementStarted = false;
-  sendJson(
-    socket,
-    buildMeasurementEvent(client.sessionId, "measurement_selected", {
-      measurement,
-    }),
-  );
-};
-
 const clearTimers = (client) => {
   client.timers.forEach(clearTimeout);
   client.timers.clear();
 };
 
-const resetClientSession = (socket) => {
-  const client = clients.get(socket);
-  if (!client) return false;
-
-  clearTimers(client);
-  client.sessionId = null;
+const resetLegacyFlow = (client) => {
+  client.controlMode = null;
   client.cycleStarted = false;
   client.faceInAreaSent = false;
   client.postGreetingFlowStarted = false;
   client.scanIntroShown = false;
   client.postScanIntroFlowStarted = false;
+  client.profileQuestionsShown = false;
+  client.postProfileQuestionsFlowStarted = false;
   client.postScanSelectionFlowStarted = false;
   client.postDeclineFlowStarted = false;
   client.declineMeasurements = false;
@@ -124,6 +82,16 @@ const resetClientSession = (socket) => {
   client.awaitingResultsSpeechKey = null;
   client.resultsIntroSent = false;
   client.resultsIntroAcknowledged = false;
+};
+
+const resetClientSession = (socket) => {
+  const client = clients.get(socket);
+  if (!client) return false;
+
+  clearTimers(client);
+  resetLegacyFlow(client);
+  client.sessionId = null;
+  client.scenario = null;
 
   return sendJson(socket, buildTechMessage(null));
 };
@@ -158,10 +126,29 @@ const startMockUserTurn = (socket, client, onComplete) => {
           i_am_thinking: true,
         }),
       );
-
       schedule(client, onComplete, THINKING_DURATION_MS);
     },
     USER_SPEECH_DURATION_MS,
+  );
+};
+
+const setVoicePhase = (client, phase, updates = {}) => {
+  client.scenario = {
+    ...client.scenario,
+    phase,
+    ...updates,
+  };
+};
+
+const selectMeasurement = (socket, client, measurement) => {
+  client.activeMeasurement = measurement;
+  client.measurementStarted = false;
+  setVoicePhase(client, PHASES.MEASUREMENT_SELECTED, {
+    activeMeasurement: measurement,
+  });
+  sendJson(
+    socket,
+    ok(client.sessionId, "measurement_selected", { measurement }),
   );
 };
 
@@ -170,33 +157,21 @@ const startCycle = (socket, declineMeasurements = false) => {
   if (!client || socket.readyState !== WebSocket.OPEN) return null;
 
   clearTimers(client);
+  resetLegacyFlow(client);
   client.sessionId = createSessionId();
+  client.scenario = createScenarioState(client.sessionId);
+  client.controlMode = "voice";
   client.cycleStarted = true;
-  client.faceInAreaSent = false;
-  client.postGreetingFlowStarted = false;
-  client.scanIntroShown = false;
-  client.postScanIntroFlowStarted = false;
-  client.postScanSelectionFlowStarted = false;
-  client.postDeclineFlowStarted = false;
   client.declineMeasurements = declineMeasurements;
-  client.activeMeasurement = null;
-  client.measurementStarted = false;
-  client.completedMeasurements.clear();
-  client.awaitingResultsSpeechKey = null;
-  client.resultsIntroSent = false;
-  client.resultsIntroAcknowledged = false;
 
   sendJson(socket, buildTechMessage(client.sessionId));
-
   schedule(
     client,
     () => {
       client.faceInAreaSent = true;
       sendJson(
         socket,
-        buildTechMessage(client.sessionId, {
-          face_in_area: true,
-        }),
+        buildTechMessage(client.sessionId, { face_in_area: true }),
       );
     },
     FACE_IN_AREA_DELAY_MS,
@@ -216,74 +191,43 @@ const restartCycle = async (socket, declineMeasurements = false) => {
   const restartVersion = client.restartVersion;
 
   await new Promise((resolve) => setTimeout(resolve, SESSION_RESTART_DELAY_MS));
-
   if (client.restartVersion !== restartVersion) return null;
 
   return startCycle(socket, declineMeasurements);
 };
 
-const openApiDocument = {
-  openapi: "3.0.0",
-  info: {
-    title: "VSP Frontend Stub",
-    version: "1.0.0",
-    description:
-      "Минимальный event-driven WebSocket mock-backend для сценария VSP.",
-  },
-  servers: [{ url: `http://${HOST}:${PORT}` }],
-  paths: {
-    "/cycle": {
-      get: {
-        tags: ["Scenario"],
-        summary: "Запустить mock-сценарий с одним замером",
-        description:
-          "Сначала сбрасывает текущую сессию, затем создаёт новую, имитирует замер skin и отказ от оставшихся замеров, после чего отправляет results_intro_ready со статусами категорий и числом отклонений.",
-        responses: {
-          200: {
-            description:
-              "Сценарий запущен для всех подключённых WebSocket-клиентов.",
-          },
-          409: {
-            description:
-              "Нет подключённых WebSocket-клиентов. Сценарий не запущен.",
-          },
-        },
-      },
-    },
-    "/reset": {
-      post: {
-        tags: ["Scenario"],
-        summary: "Сбросить текущую mock-сессию",
-        description:
-          "Отменяет ожидающие события, очищает состояние сценария и возвращает подключённый frontend на стартовый экран. WebSocket-соединение остаётся открытым.",
-        responses: {
-          200: {
-            description:
-              "Сессии всех подключённых WebSocket-клиентов сброшены.",
-          },
-        },
-      },
-    },
-    "/decline-measurements": {
-      post: {
-        tags: ["Scenario"],
-        summary: "Запустить сценарий отказа от замеров",
-        description:
-          "Сначала сбрасывает текущую сессию, затем создаёт новую, имитирует отказ пользователя после приветствия, отправляет event measurements_declined, а после дополнительной реплики пользователя завершает ветку event session_exit_without_measurements.",
-        responses: {
-          200: {
-            description:
-              "Сценарий отказа запущен для всех подключённых WebSocket-клиентов.",
-          },
-          409: {
-            description:
-              "Нет подключённых WebSocket-клиентов. Сценарий не запущен.",
-          },
-        },
-      },
-    },
-  },
+const handleMockUserIntent = (socket, client, payload) => {
+  if (client.controlMode !== "intent") {
+    clearTimers(client);
+    client.controlMode = "intent";
+  }
+
+  const previousSessionId = client.scenario?.sessionId ?? null;
+  const result = transitionScenario(client.scenario, payload, {
+    createSessionId,
+  });
+
+  if (
+    payload?.intent === "restart_session" &&
+    result.state.sessionId !== previousSessionId
+  ) {
+    clearTimers(client);
+    resetLegacyFlow(client);
+    client.controlMode = "intent";
+    client.cycleStarted = true;
+    client.faceInAreaSent = true;
+  }
+
+  client.scenario = result.state;
+  client.sessionId = result.state?.sessionId ?? null;
+  sendEvents(socket, result.events);
 };
+
+const openApiDocument = createOpenApiDocument({
+  host: HOST,
+  port: PORT,
+  webSocketPath: WEBSOCKET_PATH,
+});
 
 const app = express();
 
@@ -301,10 +245,11 @@ app.get("/openapi.json", (_request, response) => {
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
+const getConnectedSockets = () =>
+  [...clients.keys()].filter((socket) => socket.readyState === WebSocket.OPEN);
+
 app.get("/cycle", async (_request, response) => {
-  const connectedSockets = [...clients.keys()].filter(
-    (socket) => socket.readyState === WebSocket.OPEN,
-  );
+  const connectedSockets = getConnectedSockets();
 
   if (connectedSockets.length === 0) {
     response.status(409).json({
@@ -316,9 +261,9 @@ app.get("/cycle", async (_request, response) => {
     return;
   }
 
-  const sessionIds = (await Promise.all(connectedSockets.map((socket) => restartCycle(socket)))).filter(
-    Boolean,
-  );
+  const sessionIds = (
+    await Promise.all(connectedSockets.map((socket) => restartCycle(socket)))
+  ).filter(Boolean);
 
   response.json({
     status: "started",
@@ -328,9 +273,7 @@ app.get("/cycle", async (_request, response) => {
 });
 
 app.post("/decline-measurements", async (_request, response) => {
-  const connectedSockets = [...clients.keys()].filter(
-    (socket) => socket.readyState === WebSocket.OPEN,
-  );
+  const connectedSockets = getConnectedSockets();
 
   if (connectedSockets.length === 0) {
     response.status(409).json({
@@ -343,7 +286,9 @@ app.post("/decline-measurements", async (_request, response) => {
   }
 
   const sessionIds = (
-    await Promise.all(connectedSockets.map((socket) => restartCycle(socket, true)))
+    await Promise.all(
+      connectedSockets.map((socket) => restartCycle(socket, true)),
+    )
   ).filter(Boolean);
 
   response.json({
@@ -355,17 +300,10 @@ app.post("/decline-measurements", async (_request, response) => {
 });
 
 app.post("/reset", (_request, response) => {
-  const connectedSockets = [...clients.keys()].filter(
-    (socket) => socket.readyState === WebSocket.OPEN,
-  );
-  const resetClients = connectedSockets.filter(resetClientSession).length;
+  const resetClients = getConnectedSockets().filter(resetClientSession).length;
 
   console.log(`Сброшено сессий: ${resetClients}`);
-
-  response.json({
-    status: "reset",
-    clients: resetClients,
-  });
+  response.json({ status: "reset", clients: resetClients });
 });
 
 const server = http.createServer(app);
@@ -376,25 +314,13 @@ const webSocketServer = new WebSocketServer({
 
 webSocketServer.on("connection", (socket) => {
   const client = {
-    cycleStarted: false,
-    faceInAreaSent: false,
-    postGreetingFlowStarted: false,
-    scanIntroShown: false,
-    postScanIntroFlowStarted: false,
-    postScanSelectionFlowStarted: false,
-    postDeclineFlowStarted: false,
-    declineMeasurements: false,
     restartVersion: 0,
-    activeMeasurement: null,
-    measurementStarted: false,
-    completedMeasurements: new Set(),
-    awaitingResultsSpeechKey: null,
-    resultsIntroSent: false,
-    resultsIntroAcknowledged: false,
     sessionId: null,
+    scenario: null,
     timers: new Set(),
+    completedMeasurements: new Set(),
   };
-
+  resetLegacyFlow(client);
   clients.set(socket, client);
   console.log("✅ Frontend подключён и ожидает запуска /cycle");
 
@@ -411,8 +337,15 @@ webSocketServer.on("connection", (socket) => {
 
     console.log("⬅️ ", message);
 
+    if (message?.type === "mock_user_intent") {
+      handleMockUserIntent(socket, client, message.payload);
+
+      return;
+    }
+
     if (
       message?.type !== "avatar_state" ||
+      client.controlMode !== "voice" ||
       !client.cycleStarted ||
       !client.faceInAreaSent
     ) {
@@ -421,6 +354,8 @@ webSocketServer.on("connection", (socket) => {
 
     const greetingFinished = message.payload?.greeted === true;
     const scanIntroFinished = message.payload?.scanIntroSpoken === true;
+    const profileQuestionsFinished =
+      message.payload?.profileQuestionsSpoken === true;
     const scanSelectionFinished = message.payload?.scanSelectionSpoken === true;
     const measurementsDeclinedFinished =
       message.payload?.measurementsDeclinedSpoken === true;
@@ -437,6 +372,7 @@ webSocketServer.on("connection", (socket) => {
 
       startMockUserTurn(socket, client, () => {
         if (client.declineMeasurements) {
+          setVoicePhase(client, PHASES.MEASUREMENTS_DECLINED);
           sendJson(
             socket,
             buildTechMessage(client.sessionId, {
@@ -444,15 +380,13 @@ webSocketServer.on("connection", (socket) => {
               mic_on: true,
             }),
           );
-          sendJson(
-            socket,
-            buildScenarioEvent(client.sessionId, "measurements_declined"),
-          );
+          sendJson(socket, ok(client.sessionId, "measurements_declined"));
 
           return;
         }
 
         client.scanIntroShown = true;
+        setVoicePhase(client, PHASES.SCAN_INTRO);
         sendJson(
           socket,
           buildTechMessage(client.sessionId, {
@@ -460,10 +394,7 @@ webSocketServer.on("connection", (socket) => {
             mic_on: true,
           }),
         );
-        sendJson(
-          socket,
-          buildScenarioEvent(client.sessionId, "scan_intro_ready"),
-        );
+        sendJson(socket, ok(client.sessionId, "scan_intro_ready"));
       });
 
       return;
@@ -477,6 +408,7 @@ webSocketServer.on("connection", (socket) => {
       client.postDeclineFlowStarted = true;
 
       startMockUserTurn(socket, client, () => {
+        setVoicePhase(client, PHASES.EXITED);
         sendJson(
           socket,
           buildTechMessage(client.sessionId, {
@@ -486,10 +418,7 @@ webSocketServer.on("connection", (socket) => {
         );
         sendJson(
           socket,
-          buildScenarioEvent(
-            client.sessionId,
-            "session_exit_without_measurements",
-          ),
+          ok(client.sessionId, "session_exit_without_measurements"),
         );
       });
 
@@ -504,6 +433,8 @@ webSocketServer.on("connection", (socket) => {
       client.postScanIntroFlowStarted = true;
 
       startMockUserTurn(socket, client, () => {
+        client.profileQuestionsShown = true;
+        setVoicePhase(client, PHASES.PROFILE_QUESTIONS);
         sendJson(
           socket,
           buildTechMessage(client.sessionId, {
@@ -511,10 +442,29 @@ webSocketServer.on("connection", (socket) => {
             mic_on: true,
           }),
         );
+        sendJson(socket, ok(client.sessionId, "profile_questions_ready"));
+      });
+
+      return;
+    }
+
+    if (
+      profileQuestionsFinished &&
+      client.profileQuestionsShown &&
+      !client.postProfileQuestionsFlowStarted
+    ) {
+      client.postProfileQuestionsFlowStarted = true;
+
+      startMockUserTurn(socket, client, () => {
+        setVoicePhase(client, PHASES.SCAN_SELECTION);
         sendJson(
           socket,
-          buildScenarioEvent(client.sessionId, "scan_selection_ready"),
+          buildTechMessage(client.sessionId, {
+            face_in_area: true,
+            mic_on: true,
+          }),
         );
+        sendJson(socket, ok(client.sessionId, "scan_selection_ready"));
       });
 
       return;
@@ -545,13 +495,14 @@ webSocketServer.on("connection", (socket) => {
     ) {
       client.measurementStarted = true;
       const measuredType = client.activeMeasurement;
+      setVoicePhase(client, PHASES.MEASUREMENT_IN_PROGRESS);
 
       schedule(
         client,
         () => {
           sendJson(
             socket,
-            buildMeasurementEvent(client.sessionId, "measurement_started", {
+            ok(client.sessionId, "measurement_started", {
               measurement: measuredType,
             }),
           );
@@ -560,23 +511,27 @@ webSocketServer.on("connection", (socket) => {
             client,
             () => {
               client.completedMeasurements.add(measuredType);
-              const results = buildMeasurementResults(
-                client.completedMeasurements,
-              );
+              const completedMeasurements = [
+                ...client.completedMeasurements,
+              ];
               client.awaitingResultsSpeechKey =
                 buildMeasurementResultsSpeechKey(client.completedMeasurements);
               client.activeMeasurement = null;
               client.measurementStarted = false;
+              setVoicePhase(client, PHASES.MEASUREMENT_RESULTS, {
+                activeMeasurement: null,
+                completedMeasurements,
+              });
 
               sendJson(
                 socket,
-                buildMeasurementEvent(
-                  client.sessionId,
-                  "measurement_results_ready",
-                  {
-                    results,
-                  },
-                ),
+                buildParamsMessage(client.sessionId, completedMeasurements),
+              );
+              sendJson(
+                socket,
+                ok(client.sessionId, "measurement_results_ready", {
+                  results: buildMeasurementResults(completedMeasurements),
+                }),
               );
             },
             MEASUREMENT_RESULTS_DELAY_MS,
@@ -597,6 +552,10 @@ webSocketServer.on("connection", (socket) => {
       client.resultsIntroSent = true;
 
       startMockUserTurn(socket, client, () => {
+        const completedMeasurements = [...client.completedMeasurements];
+        setVoicePhase(client, PHASES.RESULTS_INTRO, {
+          completedMeasurements,
+        });
         sendJson(
           socket,
           buildTechMessage(client.sessionId, {
@@ -606,8 +565,8 @@ webSocketServer.on("connection", (socket) => {
         );
         sendJson(
           socket,
-          buildMeasurementEvent(client.sessionId, "results_intro_ready", {
-            results: buildResultsIntro(client.completedMeasurements),
+          ok(client.sessionId, "results_intro_ready", {
+            results: buildResultsIntro(completedMeasurements),
           }),
         );
       });

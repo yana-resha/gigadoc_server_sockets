@@ -1,62 +1,106 @@
 # VSP WebSocket Stub
 
-Минимальный event-driven mock-backend для текущей ветки VSP Client.
+Event-driven mock-backend для VSP Client. Поддерживает прежний голосовой
+сценарий и мгновенное ручное прохождение всех веток через WebSocket intents.
 
-## Запуск
+## Запуск и проверка
 
 ```bash
 npm install
 npm start
+npm test
 ```
 
-После запуска доступны:
+- WebSocket: `ws://127.0.0.1:8000/ws_process`
+- Swagger UI: `http://127.0.0.1:8000/api-docs`
+- OpenAPI JSON: `GET http://127.0.0.1:8000/openapi.json`
+- голосовой сценарий: `GET http://127.0.0.1:8000/cycle`
+- голосовой отказ: `POST http://127.0.0.1:8000/decline-measurements`
+- сброс: `POST http://127.0.0.1:8000/reset`
 
-- WebSocket: `ws://127.0.0.1:8000/ws_process`;
-- информация о запущенном стабе: `GET http://127.0.0.1:8000/`;
-- Swagger UI: `http://127.0.0.1:8000/api-docs`;
-- OpenAPI JSON: `GET http://127.0.0.1:8000/openapi.json`;
-- прямой запуск сценария: `GET http://127.0.0.1:8000/cycle`;
-- сценарий отказа от замеров: `POST http://127.0.0.1:8000/decline-measurements`;
-- сброс текущей сессии: `POST http://127.0.0.1:8000/reset`.
+Порт задаётся переменной окружения `PORT`.
 
-Порт можно изменить переменной окружения `PORT`.
+## Управляемый mock-сценарий
 
-## Сценарий одного подключения
+Frontend отправляет сообщение без ожидания речи пользователя и без серверных
+таймеров:
 
-Frontend сначала подключается к WebSocket и ждёт команды. Каждый вызов `GET /cycle` или `POST /decline-measurements` сначала сбрасывает текущую mock-сессию, отправляя frontend пустой `session_id`, выдерживает короткую паузу для завершения frontend lifecycle и только затем создаёт новую. Поэтому между повторными запусками сценария страницу обновлять не нужно.
+```json
+{
+  "type": "mock_user_intent",
+  "payload": {
+    "intent": "select_measurement",
+    "session_id": "vsp-mock-...",
+    "data": { "measurement": "skin" }
+  }
+}
+```
 
-Сценарий с одним завершённым замером и отказом от оставшихся запускается через `GET /cycle` из Swagger или напрямую:
+Первая команда `begin_measurements` или `decline_measurements` сама создаёт
+сессию. Intent `restart_session` синхронно отправляет сброс `tech` с пустой
+`session_id`, затем новый `tech` с `face_in_area: true`.
 
-1. Stub создаёт новую `session_id` и отправляет `tech` с начальными false-флагами.
-2. Через 1 секунду отправляет `face_in_area: true`.
-3. Ждёт от frontend сообщение `avatar_state` с `payload.greeted: true`.
-4. Сразу отправляет `mic_on: true` и `mic_in_progress: true`, имитируя речь пользователя.
-5. Через 2 секунды завершает речь и на 2 секунды включает `i_am_thinking: true`.
-6. Затем выключает `i_am_thinking` и отправляет event `scan_intro_ready`.
-7. На intro frontend-аватар произносит вопрос про пол, возраст, рост и вес и после фактического окончания отправляет `avatar_state` с `scanIntroSpoken: true`.
-8. Только после этого stub снова на 2 секунды включает `mic_in_progress`, затем на 2 секунды — `i_am_thinking`.
-9. После второго ответа отправляет event `scan_selection_ready`.
-10. Ждёт `avatar_state.scanSelectionSpoken: true`, имитирует выбор пользователя и подготовку ответа.
-11. Отправляет event `measurement_selected` для `skin`, после чего frontend показывает инструкцию замера кожи.
-12. Frontend-аватар называет выбранный замер, просит следовать инструкциям на планшете и после окончания отправляет `avatar_state.measurementInstructionSpoken: true`.
-13. Через 1 секунду stub отправляет event `measurement_started`; frontend показывает экран сканирования с indeterminate-прогрессом.
-14. Через 5 секунд отправляет `measurement_results_ready`: кожа пройдена, сердце и сосуды и зрение ещё ожидают замера.
-15. Stub ждёт, пока frontend подтвердит окончание озвучивания этой сводки, и имитирует реплику пользователя о том, что он не хочет продолжать сканирование.
-16. После состояний «слушает → думает» stub отправляет `results_intro_ready`. В массиве `results` кожа пройдена и содержит `deviations_count: 3`, а сердце и сосуды и зрение отмечены как непройденные с нулевым числом отклонений.
-17. Frontend показывает частичную сводку «Ваши показатели», приглушает непройденные категории и после речи аватара подтверждает её полем `avatar_state.resultsIntroSpoken: true`.
+Если `session_id` передан, он обязан совпадать с активной сессией. Неверная
+фаза, сессия или payload возвращают сообщение `status: "fail"` и не изменяют
+состояние.
 
-Event `measurement_reset` входит в новый контракт, но mock пока не отправляет его: reset-ветка будет добавлена вместе с утверждённым экраном.
+Доступные intents:
 
-## Отказ от замеров
+- `begin_measurements` → `scan_intro_ready`
+- `decline_measurements` → `measurements_declined`
+- `begin_profile_questions` → `profile_questions_ready`
+- `continue_with_profile`, `continue_without_profile` → `scan_selection_ready`
+- `select_measurement` с `data.measurement` → `measurement_selected`
+- `start_measurement` → `measurement_started`
+- `complete_measurement` → `params`, затем `measurement_results_ready`
+- `reset_measurement` → `measurement_reset`
+- `finish_measurements` → `results_intro_ready`
+- `resume_measurements` → `measurements_resume_ready` и возврат к непройденным замерам
+- `show_results_overview` → `results_view_ready` (`overview`)
+- `open_category` с `data.category` → `results_view_ready` (`category_cards`)
+- `open_category_table` с `data.category` → `results_view_ready` (`category_table`)
+- `show_all_deviations` → `results_view_ready` (`all_deviations`)
+- `show_all_indicators` → `results_view_ready` (`all_indicators`)
+- `save_results` → `qr` с SVG чёрного квадрата, затем `results_view_ready` (`qr`)
+- `finish_session` → выход с замерами или без них в зависимости от ветки
+- `restart_session` → новая сессия
 
-`POST /decline-measurements` запускает отдельную mock-ветку. Stub создаёт новую сессию, дожидается окончания приветствия, имитирует ответ пользователя и отправляет event `measurements_declined`. Frontend открывает экран «Замеры пропустили» и озвучивает возможность задавать вопросы о здоровье.
+Поддерживаемые `measurement` и `category`: `skin`, `heart_and_vessels`,
+`vision`. Категорию результатов можно открыть только после соответствующего
+завершённого замера.
 
-Эта ветка не сбрасывает `session_id` и не закрывает WebSocket. После озвучивания frontend отправляет `avatar_state.measurementsDeclinedSpoken: true`. Stub имитирует ещё одну реплику пользователя, показывает состояния «слушает → думает» и отправляет event `session_exit_without_measurements`. Frontend открывает финальный экран «Спасибо» без QR; этот event используется только для выхода из сессии, в которой не было замеров.
+Типовой полный путь:
 
-Каждое `tech`-сообщение явно содержит `i_am_thinking`: значение равно `true` только на этапе имитации подготовки ответа.
+```text
+restart_session
+→ begin_measurements
+→ begin_profile_questions
+→ continue_with_profile
+→ select_measurement
+→ start_measurement
+→ complete_measurement
+→ ... другие замеры ...
+→ finish_measurements
+→ show_results_overview
+→ open_category / open_category_table / show_all_deviations / show_all_indicators
+→ save_results
+→ finish_session
+```
 
-Без вызова `/cycle` WebSocket-подключение остаётся полностью пассивным. Если frontend ещё не подключён, `/cycle` вернёт `409`; после подключения запрос нужно выполнить повторно.
+`params` накапливаются по завершённым категориям. Полный fixture содержит
+ровно 30 ключей текущего UI registry: 16 сердца/общих показателей, 11 кожи и
+3 зрения. В данных есть нормальные значения и отклонения, а также
+`step_values` для шкал.
 
-Повторные синхронизации `greeted: true` не запускают сценарий заново. При отключении клиента все его таймеры очищаются.
+## Голосовой путь
 
-`POST /reset` отменяет все ожидающие события активного цикла, очищает его флаги и отправляет frontend начальное `tech`-состояние с пустым `session_id`. WebSocket остаётся подключённым, поэтому после сброса можно сразу снова вызвать `GET /cycle`.
+`/cycle`, `/decline-measurements` и сообщения `avatar_state` работают как
+раньше. Сервер имитирует «слушает → думает» таймерами, ждёт фактического
+окончания речи аватара и использует существующие события ранних фаз.
+
+`/reset` отменяет таймеры, очищает состояние и отправляет начальный `tech` с
+пустой `session_id`, не закрывая WebSocket.
+
+Ветка отказа завершается `session_exit_without_measurements` и никогда не
+отправляет QR. Ветка с результатами завершается новым событием
+`session_exit_with_measurements`.
