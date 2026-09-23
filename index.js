@@ -7,6 +7,7 @@ const { WebSocketServer, WebSocket } = require("ws");
 const { createOpenApiDocument } = require("./lib/openapi");
 const {
   MEASUREMENT_PLAN,
+  buildMeasurementSnapshot,
   buildMeasurementResults,
   buildParamsMessage,
   buildResultsIntro,
@@ -131,6 +132,20 @@ const resetLegacyFlow = (client) => {
   client.awaitingResultsSpeechKey = null;
   client.resultsIntroSent = false;
   client.resultsIntroAcknowledged = false;
+  client.snapshotRevision = 0;
+};
+
+const sendMeasurementSnapshot = (socket, client, completedMeasurements) => {
+  client.snapshotRevision += 1;
+
+  return sendJson(
+    socket,
+    buildMeasurementSnapshot(
+      client.sessionId,
+      completedMeasurements,
+      client.snapshotRevision,
+    ),
+  );
 };
 
 const resetClientSession = (socket) => {
@@ -217,6 +232,7 @@ const startCycle = (socket, declineMeasurements = false) => {
   client.declineMeasurements = declineMeasurements;
 
   sendJson(socket, buildTechMessage(client.sessionId));
+  sendMeasurementSnapshot(socket, client, []);
   schedule(
     client,
     () => {
@@ -280,6 +296,13 @@ const handleMockUserIntent = (socket, client, payload) => {
   client.scenario = result.state;
   client.sessionId = result.state?.sessionId ?? null;
   sendEvents(socket, client, result.events);
+  if (
+    result.events.some((event) =>
+      ["measurement_results_ready", "measurement_reset"].includes(event.type),
+    )
+  ) {
+    sendMeasurementSnapshot(socket, client, result.state.completedMeasurements);
+  }
   if (payload?.intent === "restart_session" && result.state?.sessionId) {
     sendMicrophoneText(socket, client, "Хотите измериться?");
   }
@@ -592,6 +615,7 @@ webSocketServer.on("connection", (socket) => {
                 socket,
                 buildParamsMessage(client.sessionId, completedMeasurements),
               );
+              sendMeasurementSnapshot(socket, client, completedMeasurements);
               sendScenarioEvent(
                 socket,
                 client,
