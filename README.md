@@ -61,9 +61,10 @@ Frontend отправляет сообщение без ожидания реч�
 - `open_category_table` с `data.category` → `results_view_ready` (`category_table`)
 - `show_all_deviations` → `results_view_ready` (`all_deviations`)
 - `show_all_indicators` → `results_view_ready` (`all_indicators`)
-- `save_results` → `qr` с SVG чёрного квадрата, затем `results_view_ready` (`qr`)
+- `save_results` → `qr` с тестовым SVG QR-кода, затем `results_view_ready` (`qr`)
 - `finish_session` → выход с замерами или без них в зависимости от ветки
 - `restart_session` → новая сессия
+- `clear_microphone_text` → `voice_subtitle` с `text: null`, без изменения сценарной фазы
 
 Поддерживаемые `measurement` и `category`: `skin`, `heart_and_vessels`,
 `vision`. Категорию результатов можно открыть только после соответствующего
@@ -97,6 +98,27 @@ restart_session
 `/cycle`, `/decline-measurements` и сообщения `avatar_state` работают как
 раньше. Сервер имитирует «слушает → думает» таймерами, ждёт фактического
 окончания речи аватара и использует существующие события ранних фаз.
+
+### Фразы индикатора микрофона
+
+Stub имитирует целевой backend-контракт и передаёт текст только через
+`voice_subtitle`. Перед сценарным событием он отправляет новую фразу, а при
+`/reset` — `text: null` для её очистки:
+
+```json
+{
+  "status": "ok",
+  "type": "voice_subtitle",
+  "turn_id": "mock-subtitle-vsp-mock-…-1",
+  "sentence_index": 1,
+  "text": "Начинаем?"
+}
+```
+
+Фронтенд должен сохранять последнюю фразу до следующего `voice_subtitle` или
+явного `text: null`; `eos`, interrupt и смена экранов её не очищают. Фразы
+подобраны для всех экранов управляемого и голосового mock-сценариев, включая
+результаты, QR и финальный выход.
 
 `/reset` отменяет таймеры, очищает состояние и отправляет начальный `tech` с
 пустой `session_id`, не закрывая WebSocket.

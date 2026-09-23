@@ -103,7 +103,7 @@ test("полный intent-сценарий отдаёт production-like собы
     "qr",
     "results_view_ready",
   ]);
-  assert.match(result.events[0].svg, /fill="#000"/);
+  assert.match(result.events[0].svg, /<svg\b/);
   assert.equal(result.events[1].view, "qr");
   state = result.state;
 

@@ -48,8 +48,57 @@ const sendJson = (socket, message) => {
   return true;
 };
 
-const sendEvents = (socket, events) => {
-  events.forEach((event) => sendJson(socket, event));
+const MICROPHONE_TEXT_BY_EVENT = {
+  scan_intro_ready: "Начинаем?",
+  profile_questions_ready: "Скажите, пожалуйста, ваш пол",
+  scan_selection_ready: "С какого начнём?",
+  measurements_declined: "Спрашивайте про здоровье — отвечу",
+  session_exit_without_measurements: "Хорошего дня",
+  measurement_selected: "Начинаем, когда будете готовы",
+  measurement_started: "Ожидаю результат сканирования",
+  measurement_results_ready: "Результаты замеров готовы",
+  results_intro_ready: "Можно задать любой вопрос о здоровье",
+  session_exit_with_measurements: "Хорошего дня",
+};
+
+const microphoneTextForEvent = (event) => {
+  if (event.type === "results_view_ready") {
+    return {
+      overview: "Результаты готовы",
+      category_cards: "Показатели",
+      category_table: "Показатели",
+      all_deviations: "Отклонения показателей",
+      all_indicators: "Все показатели",
+      qr: "Наведите камеру телефона",
+    }[event.view];
+  }
+
+  if (event.type === "qr") return "Наведите камеру телефона";
+
+  return MICROPHONE_TEXT_BY_EVENT[event.type];
+};
+
+const sendMicrophoneText = (socket, client, text) => {
+  client.subtitleSequence += 1;
+
+  return sendJson(socket, {
+    status: "ok",
+    type: "voice_subtitle",
+    turn_id: `mock-subtitle-${client.sessionId ?? "idle"}-${client.subtitleSequence}`,
+    sentence_index: 1,
+    text,
+  });
+};
+
+const sendScenarioEvent = (socket, client, event) => {
+  const text = microphoneTextForEvent(event);
+  if (text !== undefined) sendMicrophoneText(socket, client, text);
+
+  return sendJson(socket, event);
+};
+
+const sendEvents = (socket, client, events) => {
+  events.forEach((event) => sendScenarioEvent(socket, client, event));
 };
 
 const buildMeasurementResultsSpeechKey = (completedMeasurements) =>
@@ -92,6 +141,8 @@ const resetClientSession = (socket) => {
   resetLegacyFlow(client);
   client.sessionId = null;
   client.scenario = null;
+
+  sendMicrophoneText(socket, client, null);
 
   return sendJson(socket, buildTechMessage(null));
 };
@@ -146,8 +197,9 @@ const selectMeasurement = (socket, client, measurement) => {
   setVoicePhase(client, PHASES.MEASUREMENT_SELECTED, {
     activeMeasurement: measurement,
   });
-  sendJson(
+  sendScenarioEvent(
     socket,
+    client,
     ok(client.sessionId, "measurement_selected", { measurement }),
   );
 };
@@ -173,6 +225,7 @@ const startCycle = (socket, declineMeasurements = false) => {
         socket,
         buildTechMessage(client.sessionId, { face_in_area: true }),
       );
+      sendMicrophoneText(socket, client, "Хотите измериться?");
     },
     FACE_IN_AREA_DELAY_MS,
   );
@@ -197,6 +250,12 @@ const restartCycle = async (socket, declineMeasurements = false) => {
 };
 
 const handleMockUserIntent = (socket, client, payload) => {
+  if (payload?.intent === "clear_microphone_text") {
+    sendMicrophoneText(socket, client, null);
+
+    return;
+  }
+
   if (client.controlMode !== "intent") {
     clearTimers(client);
     client.controlMode = "intent";
@@ -220,7 +279,10 @@ const handleMockUserIntent = (socket, client, payload) => {
 
   client.scenario = result.state;
   client.sessionId = result.state?.sessionId ?? null;
-  sendEvents(socket, result.events);
+  sendEvents(socket, client, result.events);
+  if (payload?.intent === "restart_session" && result.state?.sessionId) {
+    sendMicrophoneText(socket, client, "Хотите измериться?");
+  }
 };
 
 const openApiDocument = createOpenApiDocument({
@@ -319,6 +381,7 @@ webSocketServer.on("connection", (socket) => {
     scenario: null,
     timers: new Set(),
     completedMeasurements: new Set(),
+    subtitleSequence: 0,
   };
   resetLegacyFlow(client);
   clients.set(socket, client);
@@ -380,7 +443,7 @@ webSocketServer.on("connection", (socket) => {
               mic_on: true,
             }),
           );
-          sendJson(socket, ok(client.sessionId, "measurements_declined"));
+          sendScenarioEvent(socket, client, ok(client.sessionId, "measurements_declined"));
 
           return;
         }
@@ -394,7 +457,7 @@ webSocketServer.on("connection", (socket) => {
             mic_on: true,
           }),
         );
-        sendJson(socket, ok(client.sessionId, "scan_intro_ready"));
+        sendScenarioEvent(socket, client, ok(client.sessionId, "scan_intro_ready"));
       });
 
       return;
@@ -416,8 +479,9 @@ webSocketServer.on("connection", (socket) => {
             mic_on: true,
           }),
         );
-        sendJson(
+        sendScenarioEvent(
           socket,
+          client,
           ok(client.sessionId, "session_exit_without_measurements"),
         );
       });
@@ -442,7 +506,7 @@ webSocketServer.on("connection", (socket) => {
             mic_on: true,
           }),
         );
-        sendJson(socket, ok(client.sessionId, "profile_questions_ready"));
+        sendScenarioEvent(socket, client, ok(client.sessionId, "profile_questions_ready"));
       });
 
       return;
@@ -464,7 +528,7 @@ webSocketServer.on("connection", (socket) => {
             mic_on: true,
           }),
         );
-        sendJson(socket, ok(client.sessionId, "scan_selection_ready"));
+        sendScenarioEvent(socket, client, ok(client.sessionId, "scan_selection_ready"));
       });
 
       return;
@@ -500,8 +564,9 @@ webSocketServer.on("connection", (socket) => {
       schedule(
         client,
         () => {
-          sendJson(
+          sendScenarioEvent(
             socket,
+            client,
             ok(client.sessionId, "measurement_started", {
               measurement: measuredType,
             }),
@@ -527,8 +592,9 @@ webSocketServer.on("connection", (socket) => {
                 socket,
                 buildParamsMessage(client.sessionId, completedMeasurements),
               );
-              sendJson(
+              sendScenarioEvent(
                 socket,
+                client,
                 ok(client.sessionId, "measurement_results_ready", {
                   results: buildMeasurementResults(completedMeasurements),
                 }),
@@ -563,8 +629,9 @@ webSocketServer.on("connection", (socket) => {
             mic_on: true,
           }),
         );
-        sendJson(
+        sendScenarioEvent(
           socket,
+          client,
           ok(client.sessionId, "results_intro_ready", {
             results: buildResultsIntro(completedMeasurements),
           }),
