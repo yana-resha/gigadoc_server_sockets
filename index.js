@@ -1180,6 +1180,72 @@ wss.on("connection", (ws) => {
               ],
             },
 
+            osteoporosis: {
+              value: 38,
+              status: "deviation",
+              step_values: [
+                { from: 0, to: 25, status: "normal" },
+                { from: 25, to: 50, status: "deviation" },
+                { from: 50, to: 75, status: "problem" },
+                { from: 75, to: 100, status: "serious" },
+              ],
+            },
+
+            visceral_fat_overweight_probability: {
+              value: 42,
+              status: "deviation",
+              step_values: [
+                { from: 0, to: 25, status: "normal" },
+                { from: 25, to: 50, status: "deviation" },
+                { from: 50, to: 75, status: "problem" },
+                { from: 75, to: 100, status: "serious" },
+              ],
+            },
+
+            low_relative_skeletal_muscle_mass_probability: {
+              value: 21,
+              status: "normal",
+              step_values: [
+                { from: 0, to: 25, status: "normal" },
+                { from: 25, to: 50, status: "deviation" },
+                { from: 50, to: 75, status: "problem" },
+                { from: 75, to: 100, status: "serious" },
+              ],
+            },
+
+            ecw_tbw_abnormal_probability: {
+              value: 58,
+              status: "problem",
+              step_values: [
+                { from: 0, to: 25, status: "normal" },
+                { from: 25, to: 50, status: "deviation" },
+                { from: 50, to: 75, status: "problem" },
+                { from: 75, to: 100, status: "serious" },
+              ],
+            },
+
+            energy_deficiency_probability: {
+              value: 17,
+              status: "normal",
+              step_values: [
+                { from: 0, to: 25, status: "normal" },
+                { from: 25, to: 50, status: "deviation" },
+                { from: 50, to: 75, status: "problem" },
+                { from: 75, to: 100, status: "serious" },
+              ],
+            },
+
+            circulating_blood_volume_l: {
+              value: 4.8,
+              status: "normal",
+              step_values: [
+                { from: 3, to: 4.2, status: "deviation" },
+                { from: 4.2, to: 5.5, status: "normal" },
+                { from: 5.5, to: 6, status: "problem" },
+                { from: 6, to: 7, status: "serious" },
+              ],
+            },
+
             hdl_chol: {
               value: 30,
               status: "problem",
