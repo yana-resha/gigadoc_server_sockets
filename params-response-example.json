@@ -1,0 +1,136 @@
+{
+  "type": "params",
+  "age": { "value": 31 },
+  "real_age": { "value": 20 },
+  "age_std": { "value": "2" },
+  "heart_rate": { "value": 120 },
+  "bmi": {
+    "value": 15.95459959,
+    "status": "deviation",
+    "step_values": [
+      { "from": 14, "to": 18.5, "status": "deviation" },
+      { "from": 18.5, "to": 25, "status": "normal" },
+      { "from": 25, "to": 30, "status": "problem" }
+    ]
+  },
+  "cholesterol": {
+    "value": 7.9,
+    "status": "deviation",
+    "step_values": [
+      { "from": 14, "to": 18.5, "status": "deviation" },
+      { "from": 18.5, "to": 25, "status": "normal" },
+      { "from": 25, "to": 30, "status": "problem" },
+      { "from": 25, "to": 45, "status": "serious" }
+    ]
+  },
+  "temprature": {
+    "value": 36.6,
+    "status": "normal",
+    "step_values": [
+      { "from": 0, "to": 36, "status": "deviation" },
+      { "from": 36, "to": 37, "status": "normal" },
+      { "from": 37, "to": 38.5, "status": "problem" },
+      { "from": 38.5, "to": 40, "status": "serious" }
+    ]
+  },
+  "cardiac_age": { "value": 47, "status": "normal" },
+  "wellness_score": { "value": 3, "status": "deviation" },
+  "diabetes": { "value": 20, "status": "normal" },
+  "emotion": { "value": "Happiness" },
+  "ethnicity": { "value": "Asian" },
+  "relax_level": { "value": 6.8, "status": "deviation" },
+  "glycated_hemoglobin": { "value": 17.8, "status": "deviation" },
+  "hemoglobin": { "value": 17.8, "status": "deviation" },
+  "hematocrit": {
+    "value": 42.5,
+    "status": "normal",
+    "step_values": [
+      { "from": 20, "to": 36, "status": "deviation" },
+      { "from": 36, "to": 48, "status": "normal" },
+      { "from": 48, "to": 55, "status": "problem" },
+      { "from": 55, "to": 65, "status": "serious" }
+    ]
+  },
+  "glucose": { "value": 17.8, "status": "deviation" },
+  "respiratory": { "value": 18.577979797, "status": "normal" },
+  "saturation": {
+    "value": 98,
+    "status": "normal",
+    "step_values": [
+      { "from": 85, "to": 90, "status": "serious" },
+      { "from": 90, "to": 95, "status": "problem" },
+      { "from": 95, "to": 100, "status": "normal" }
+    ]
+  },
+  "raw_ppg": { "value": [10, 160, 30, 0, 160, 50, 160, 0] },
+  "gender": { "value": 0 },
+  "lower_ap": { "value": 29, "status": "problem" },
+  "pnn50": { "value": 16, "status": "deviation" },
+  "rigidity": { "value": 15, "status": "deviation" },
+  "sdnn": { "value": 18, "status": "deviation" },
+  "stress": { "value": 25, "status": "problem" },
+  "upper_ap": { "value": 15, "status": "deviation" },
+  "lpa": {
+    "value": 20,
+    "status": "normal",
+    "step_values": [
+      { "from": 0, "to": 30, "status": "normal" },
+      { "from": 30, "to": 120, "status": "problem" },
+      { "from": 120, "to": 200, "status": "serious" }
+    ]
+  },
+  "ldl_chol": {
+    "value": 2.4,
+    "status": "normal",
+    "step_values": [
+      { "from": 0, "to": 3, "status": "normal" },
+      { "from": 3, "to": 4, "status": "deviation" },
+      { "from": 4, "to": 5, "status": "problem" },
+      { "from": 5, "to": 7, "status": "serious" }
+    ]
+  },
+  "cardiac_risk": { "value": 20, "status": "normal" },
+  "atherosclerosis_risk": { "value": 20, "status": "normal" },
+  "ag_risk": { "value": 20, "status": "normal" },
+  "hypoxia_risk": { "value": 20, "status": "normal" },
+  "anemia_risk": {
+    "value": 20.2,
+    "status": "normal",
+    "step_values": [
+      { "from": 0, "to": 25, "status": "normal" },
+      { "from": 25, "to": 50, "status": "deviation" },
+      { "from": 50, "to": 75, "status": "problem" }
+    ]
+  },
+  "osteoporosis": { "value": 38, "status": "deviation" },
+  "visceral_fat_overweight_probability": { "value": 42, "status": "deviation" },
+  "low_relative_skeletal_muscle_mass_probability": { "value": 21, "status": "normal" },
+  "ecw_tbw_abnormal_probability": { "value": 58, "status": "problem" },
+  "energy_deficiency_probability": { "value": 17, "status": "normal" },
+  "circulating_blood_volume_l": { "value": 4.8, "status": "normal" },
+  "hdl_chol": { "value": 30, "status": "problem" },
+  "triglycerides": { "value": 14, "status": "deviation" },
+  "fatigue": { "value": 0.1, "status": "deviation" },
+  "skin_uniformity": {
+    "value": 54,
+    "status": "normal",
+    "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80",
+    "step_values": [
+      { "from": 0, "to": 40, "status": "deviation" },
+      { "from": 40, "to": 70, "status": "normal" },
+      { "from": 70, "to": 88, "status": "problem" },
+      { "from": 88, "to": 100, "status": "serious" }
+    ]
+  },
+  "elasticity": { "value": 66, "status": "normal", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
+  "dark_circles": { "value": 24, "status": "deviation", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
+  "oily_shine": { "value": 76, "status": "problem", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
+  "pores": { "value": 94, "status": "serious", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
+  "dullness": { "value": 49, "status": "normal", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
+  "redness": { "value": 35, "status": "deviation", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
+  "comedons": { "value": 82, "status": "problem", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
+  "scars": { "value": 91, "status": "serious", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
+  "dehydration": { "value": 58, "status": "normal", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
+  "inflammatory": { "value": 17, "status": "deviation", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
+  "wrinkles": { "value": 73, "status": "problem", "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" }
+}
