@@ -56,10 +56,7 @@ test("полный intent-сценарий отдаёт production-like собы
     state = result.state;
 
     result = apply(state, "complete_measurement", { measurement });
-    assert.deepEqual(result.events.map(({ type }) => type), [
-      "params",
-      "measurement_results_ready",
-    ]);
+    assert.deepEqual(result.events.map(({ type }) => type), ["measurement_results_ready"]);
     state = result.state;
   }
 

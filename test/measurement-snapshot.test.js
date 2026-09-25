@@ -17,4 +17,7 @@ test("snapshot использует подтверждённые зоны и р�
   assert.equal(zones.fpg.checkups[0].results[0].attributes[0].indicator, "hr");
   assert.equal(zones.cardio.checkups[0].results[0].attributes[0].indicator, "heart_rate");
   assert.equal(zones.derm.checkups[0].results[0].attributes[0].indicator, "greasy_shine");
+  assert.equal(zones.fpg.checkups[0].results[0].attributes[0].status, "normal");
+  assert.equal(zones.fpg.checkups[0].results[0].attributes[0].step_values.length, 4);
+  assert.equal(zones.cardio.checkups[0].results[0].attributes[1].indicator, "qtc");
 });
