@@ -7,6 +7,7 @@ const { WebSocketServer, WebSocket } = require("ws");
 const {
   buildMeasurementSnapshot,
   buildTechMessage,
+  fail,
 } = require("./lib/protocol");
 const { createOpenApiDocument } = require("./lib/openapi");
 const { createScenarioState, transitionScenario } = require("./lib/state-machine");
@@ -14,8 +15,11 @@ const { createScenarioState, transitionScenario } = require("./lib/state-machine
 const PORT = Number(process.env.PORT) || 8081;
 const HOST = "127.0.0.1";
 const WEBSOCKET_PATH = "/ws/frontend/v1";
-const GREETING_DELAY_MS = 1_000;
+const SCENARIO_START_DELAY_MS = 1_000;
 const SESSION_RESTART_DELAY_MS = 250;
+const MOCK_LISTENING_DELAY_MS = 700;
+const MOCK_THINKING_DELAY_MS = 900;
+const IMMEDIATE_INTENTS = new Set(["restart_session", "complete_measurement", "reset_measurement"]);
 
 let sessionCounter = 0;
 const clients = new Map();
@@ -35,55 +39,12 @@ const sendJson = (socket, message) => {
   return true;
 };
 
-const microphoneTextForEvent = (event) => {
-  if (event.type === "results_view_ready") {
-    return {
-      overview: "Результаты готовы",
-      category_cards: "Показатели",
-      category_table: "Показатели",
-      all_deviations: "Отклонения показателей",
-      all_indicators: "Все показатели",
-      qr: "Наведите камеру телефона",
-    }[event.view];
-  }
-
-  return {
-    scan_intro_ready: "Начинаем?",
-    profile_questions_ready: "Скажите, пожалуйста, ваш пол",
-    scan_selection_ready: "С какого начнём?",
-    measurements_declined: "Спрашивайте про здоровье — отвечу",
-    session_exit_without_measurements: "Хорошего дня",
-    measurement_selected: "Начинаем, когда будете готовы",
-    measurement_started: "Ожидаю результат сканирования",
-    measurement_results_ready: "Результаты замеров готовы",
-    results_intro_ready: "Можно задать любой вопрос о здоровье",
-    session_exit_with_measurements: "Хорошего дня",
-    qr: "Наведите камеру телефона",
-  }[event.type];
+const sendEvents = (socket, events) => {
+  events.forEach((event) => sendJson(socket, event));
 };
 
-const sendMicrophoneText = (socket, client, text) => {
-  client.subtitleSequence += 1;
-
-  return sendJson(socket, {
-    status: "ok",
-    type: "voice_subtitle",
-    turn_id: `mock-subtitle-${client.sessionId ?? "idle"}-${client.subtitleSequence}`,
-    sentence_index: 1,
-    text,
-  });
-};
-
-const sendScenarioEvent = (socket, client, event) => {
-  const text = microphoneTextForEvent(event);
-  if (text !== undefined) sendMicrophoneText(socket, client, text);
-
-  return sendJson(socket, event);
-};
-
-const sendEvents = (socket, client, events) => {
-  events.forEach((event) => sendScenarioEvent(socket, client, event));
-};
+const sendActiveTech = (socket, client, overrides = {}) =>
+  sendJson(socket, buildTechMessage(client.sessionId, { face_in_area: true, ...overrides }));
 
 const clearTimers = (client) => {
   client.timers.forEach(clearTimeout);
@@ -117,11 +78,11 @@ const resetClientSession = (socket) => {
   if (!client) return false;
 
   clearTimers(client);
+  client.restartVersion += 1;
+  client.pendingTurn = false;
   client.sessionId = null;
   client.scenario = null;
   client.snapshotRevision = 0;
-  sendMicrophoneText(socket, client, null);
-
   return sendJson(socket, buildTechMessage(null));
 };
 
@@ -130,6 +91,7 @@ const startCycle = (socket, declineMeasurements = false) => {
   if (!client || socket.readyState !== WebSocket.OPEN) return null;
 
   clearTimers(client);
+  client.pendingTurn = false;
   client.sessionId = createSessionId();
   client.scenario = createScenarioState(client.sessionId);
   client.snapshotRevision = 0;
@@ -137,12 +99,10 @@ const startCycle = (socket, declineMeasurements = false) => {
   sendJson(socket, buildTechMessage(client.sessionId));
   sendMeasurementSnapshot(socket, client);
   schedule(client, () => {
-    sendMicrophoneText(socket, client, "Здравствуйте! Хотите замериться?");
-
-    if (declineMeasurements) {
-      handleMockUserIntent(socket, client, { intent: "decline_measurements" });
-    }
-  }, GREETING_DELAY_MS);
+    handleMockUserIntent(socket, client, {
+      intent: declineMeasurements ? "decline_measurements" : "begin_measurements",
+    });
+  }, SCENARIO_START_DELAY_MS);
 
   console.log(`🎬 Cycle запущен для сессии ${client.sessionId}`);
 
@@ -164,30 +124,64 @@ const restartCycle = async (socket, declineMeasurements = false) => {
 };
 
 const handleMockUserIntent = (socket, client, payload) => {
-  if (payload?.intent === "clear_microphone_text") {
-    sendMicrophoneText(socket, client, null);
+  if (payload?.intent === "restart_session") {
+    clearTimers(client);
+    client.pendingTurn = false;
+  }
+
+  if (client.pendingTurn) {
+    sendJson(socket, fail(client.sessionId, "invalid_transition", "Дождитесь завершения mock-ответа."));
 
     return;
   }
 
   const previousSessionId = client.scenario?.sessionId ?? null;
   const result = transitionScenario(client.scenario, payload, { createSessionId });
+  if (result.events.some((event) => event.status === "fail")) {
+    sendEvents(socket, result.events);
+
+    return;
+  }
+
   client.scenario = result.state;
   client.sessionId = result.state?.sessionId ?? null;
-  sendEvents(socket, client, result.events);
+  const createdSession = Boolean(client.sessionId && client.sessionId !== previousSessionId);
 
-  if (client.sessionId && client.sessionId !== previousSessionId) {
-    client.snapshotRevision = 0;
-    sendMeasurementSnapshot(socket, client);
-  }
+  if (IMMEDIATE_INTENTS.has(payload.intent)) {
+    sendEvents(socket, result.events);
 
-  if (
-    result.events.some((event) =>
+    if (createdSession) {
+      client.snapshotRevision = 0;
+      sendMeasurementSnapshot(socket, client);
+    }
+
+    if (result.events.some((event) =>
       ["measurement_results_ready", "measurement_reset"].includes(event.type),
-    )
-  ) {
+    )) {
+      sendMeasurementSnapshot(socket, client);
+    }
+
+    return;
+  }
+
+  if (createdSession) {
+    client.snapshotRevision = 0;
+  }
+
+  sendActiveTech(socket, client, { mic_in_progress: true });
+  if (createdSession) {
     sendMeasurementSnapshot(socket, client);
   }
+
+  client.pendingTurn = true;
+  schedule(client, () => {
+    sendActiveTech(socket, client, { i_am_thinking: true });
+    schedule(client, () => {
+      client.pendingTurn = false;
+      sendEvents(socket, result.events.filter((event) => event.type !== "tech"));
+      sendActiveTech(socket, client);
+    }, MOCK_THINKING_DELAY_MS);
+  }, MOCK_LISTENING_DELAY_MS);
 };
 
 const openApiDocument = createOpenApiDocument({
@@ -257,7 +251,7 @@ webSocketServer.on("connection", (socket) => {
     sessionId: null,
     scenario: null,
     snapshotRevision: 0,
-    subtitleSequence: 0,
+    pendingTurn: false,
     timers: new Set(),
   };
   clients.set(socket, client);

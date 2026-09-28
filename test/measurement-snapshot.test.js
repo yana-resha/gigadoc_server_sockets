@@ -1,7 +1,18 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { buildMeasurementSnapshot } = require("../lib/protocol");
+const { buildMeasurementSnapshot, buildTechMessage } = require("../lib/protocol");
+
+test("tech содержит только используемые frontend флаги состояния", () => {
+  const tech = buildTechMessage("mock-session", {
+    mic_in_progress: true,
+    i_am_thinking: true,
+  });
+
+  assert.equal(tech.mic_in_progress, true);
+  assert.equal(tech.i_am_thinking, true);
+  assert.equal(Object.hasOwn(tech, "mic_on"), false);
+});
 
 test("snapshot использует подтверждённые зоны и реальные коды показателей", () => {
   const snapshot = buildMeasurementSnapshot("mock-session", ["heart_and_vessels", "skin"], 3);
