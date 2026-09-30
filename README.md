@@ -17,7 +17,7 @@ npm test
 - Автоматический отказ от замеров: `POST http://127.0.0.1:8081/decline-measurements`
 - Сброс: `POST http://127.0.0.1:8081/reset`
 
-Порт задаётся переменной `PORT`. `/cycle` и `/decline-measurements` создают сессию, отправляют `tech` и snapshot, а затем проходят mock-стадии прослушивания и ожидания ответа перед intro или отказом. `/reset` отменяет таймеры и отправляет `tech` с пустым `session_id`, не закрывая WebSocket.
+Порт задаётся переменной `PORT`. `/cycle` и `/decline-measurements` отправляют `session_start`, затем `tech` и snapshot, а после mock-стадий прослушивания и ожидания ответа — intro или отказ. `/reset` отменяет таймеры и отправляет `session_end`, не закрывая WebSocket.
 
 ## Ручной mock-сценарий
 
@@ -33,7 +33,7 @@ npm test
 }
 ```
 
-Первая команда `begin_measurements` или `decline_measurements` создаёт сессию. Для тестовых пользовательских фраз stub отправляет `tech.mic_in_progress: true` на 700 мс, затем `tech.i_am_thinking: true` на 900 мс, после чего отдаёт сценарное событие и сбрасывает оба флага. Аватар в frontend имитирует `isSpeaking` по новому экрану. Технические команды завершения и сброса замера, а также `restart_session`, выполняются сразу. `restart_session` отправляет сброс `tech`, затем новый `tech`. При неверной фазе или payload stub возвращает `status: "fail"`.
+Первая команда `begin_measurements` или `decline_measurements` создаёт сессию и отправляет `session_start`. Для тестовых пользовательских фраз stub отправляет `tech.mic_in_progress: true` на 700 мс, затем `tech.i_am_thinking: true` на 900 мс, после чего отдаёт сценарное событие и сбрасывает оба флага. Аватар в frontend имитирует `isSpeaking` по новому экрану. Технические команды завершения и сброса замера, а также `restart_session`, выполняются сразу. `restart_session` отправляет `session_end`, затем `session_start`. При неверной фазе или payload stub возвращает `status: "fail"`.
 
 Доступные intents:
 

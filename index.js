@@ -44,7 +44,7 @@ const sendEvents = (socket, events) => {
 };
 
 const sendActiveTech = (socket, client, overrides = {}) =>
-  sendJson(socket, buildTechMessage(client.sessionId, { face_in_area: true, ...overrides }));
+  sendJson(socket, buildTechMessage(client.sessionId, overrides));
 
 const clearTimers = (client) => {
   client.timers.forEach(clearTimeout);
@@ -83,7 +83,7 @@ const resetClientSession = (socket) => {
   client.sessionId = null;
   client.scenario = null;
   client.snapshotRevision = 0;
-  return sendJson(socket, buildTechMessage(null));
+  return sendJson(socket, { status: "ok", type: "session_end" });
 };
 
 const startCycle = (socket, declineMeasurements = false) => {
@@ -96,6 +96,7 @@ const startCycle = (socket, declineMeasurements = false) => {
   client.scenario = createScenarioState(client.sessionId);
   client.snapshotRevision = 0;
 
+  sendJson(socket, { status: "ok", type: "session_start" });
   sendJson(socket, buildTechMessage(client.sessionId));
   sendMeasurementSnapshot(socket, client);
   schedule(client, () => {
@@ -166,6 +167,7 @@ const handleMockUserIntent = (socket, client, payload) => {
 
   if (createdSession) {
     client.snapshotRevision = 0;
+    sendJson(socket, { status: "ok", type: "session_start" });
   }
 
   sendActiveTech(socket, client, { mic_in_progress: true });
@@ -178,7 +180,7 @@ const handleMockUserIntent = (socket, client, payload) => {
     sendActiveTech(socket, client, { i_am_thinking: true });
     schedule(client, () => {
       client.pendingTurn = false;
-      sendEvents(socket, result.events.filter((event) => event.type !== "tech"));
+      sendEvents(socket, result.events.filter((event) => event.type !== "session_start"));
       sendActiveTech(socket, client);
     }, MOCK_THINKING_DELAY_MS);
   }, MOCK_LISTENING_DELAY_MS);
@@ -217,7 +219,7 @@ app.get("/cycle", async (_request, response) => {
   }
 
   const sessionIds = (await Promise.all(sockets.map((socket) => restartCycle(socket)))).filter(Boolean);
-  response.json({ status: "started", clients: sessionIds.length, session_ids: sessionIds });
+  response.json({ status: "started", clients: sessionIds.length });
 });
 
 app.post("/decline-measurements", async (_request, response) => {
@@ -234,7 +236,7 @@ app.post("/decline-measurements", async (_request, response) => {
   const sessionIds = (
     await Promise.all(sockets.map((socket) => restartCycle(socket, true)))
   ).filter(Boolean);
-  response.json({ status: "started", scenario: "measurements_declined", clients: sessionIds.length, session_ids: sessionIds });
+  response.json({ status: "started", scenario: "measurements_declined", clients: sessionIds.length });
 });
 
 app.post("/reset", (_request, response) => {

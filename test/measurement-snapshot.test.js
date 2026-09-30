@@ -12,6 +12,8 @@ test("tech содержит только используемые frontend фл�
   assert.equal(tech.mic_in_progress, true);
   assert.equal(tech.i_am_thinking, true);
   assert.equal(Object.hasOwn(tech, "mic_on"), false);
+  assert.equal(Object.hasOwn(tech, "face_in_area"), false);
+  assert.equal(Object.hasOwn(tech, "session_id"), false);
 });
 
 test("snapshot использует подтверждённые зоны и реальные коды показателей", () => {
@@ -20,6 +22,8 @@ test("snapshot использует подтверждённые зоны и р�
 
   assert.equal(snapshot.type, "measurement_snapshot");
   assert.equal(snapshot.revision, 3);
+  assert.equal(Object.hasOwn(snapshot, "session_id"), false);
+  assert.equal(Object.hasOwn(snapshot.data, "session_id"), false);
   assert.equal(snapshot.data.status, "in_progress");
   assert.equal(zones.fpg.status, "completed");
   assert.equal(zones.cardio.status, "completed");

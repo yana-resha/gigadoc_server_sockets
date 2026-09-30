@@ -7,17 +7,16 @@ const {
   transitionScenario,
 } = require("../lib/state-machine");
 
-const apply = (state, intent, data, sessionId = state?.sessionId) =>
+const apply = (state, intent, data) =>
   transitionScenario(state, {
     intent,
-    session_id: sessionId,
     ...(data ? { data } : {}),
   });
 
 test("первая пользовательская фраза создаёт сессию без HTTP-запуска", () => {
   const result = transitionScenario(
     null,
-    { intent: "begin_measurements", session_id: null },
+    { intent: "begin_measurements" },
     { createSessionId: () => "panel-session" },
   );
 
@@ -25,7 +24,7 @@ test("первая пользовательская фраза создаёт с
   assert.equal(result.state.phase, PHASES.SCAN_INTRO);
   assert.deepEqual(
     result.events.map(({ type }) => type),
-    ["tech", "scan_intro_ready"],
+    ["session_start", "scan_intro_ready"],
   );
 });
 
@@ -76,7 +75,6 @@ test("полный intent-сценарий отдаёт production-like собы
   assert.deepEqual(result.events[0], {
     status: "ok",
     type: "results_view_ready",
-    session_id: "session-1",
     view: "overview",
   });
   state = result.state;
@@ -121,7 +119,7 @@ test("отказ завершается без QR", () => {
   ]);
 });
 
-test("guards отклоняют неверную фазу и session_id", () => {
+test("guards отклоняют неверную фазу", () => {
   const state = createScenarioState("actual");
 
   const wrongPhase = apply(state, "start_measurement");
@@ -129,18 +127,6 @@ test("guards отклоняют неверную фазу и session_id", () => 
   assert.equal(wrongPhase.events[0].error_code, "invalid_transition");
   assert.strictEqual(wrongPhase.state, state);
 
-  const wrongSession = apply(state, "begin_measurements", undefined, "stale");
-  assert.equal(wrongSession.events[0].status, "fail");
-  assert.equal(wrongSession.events[0].error_code, "session_mismatch");
-  assert.strictEqual(wrongSession.state, state);
-
-  const staleRestart = transitionScenario(
-    state,
-    { intent: "restart_session", session_id: "stale" },
-    { createSessionId: () => "must-not-be-used" },
-  );
-  assert.equal(staleRestart.events[0].error_code, "session_mismatch");
-  assert.strictEqual(staleRestart.state, state);
 });
 
 test("reset_measurement удаляет результат и возвращает выбор", () => {
@@ -187,14 +173,13 @@ test("restart_session создаёт новую сессию мгновенно"
   const state = createScenarioState("old");
   const result = transitionScenario(
     state,
-    { intent: "restart_session", session_id: "old" },
+    { intent: "restart_session" },
     { createSessionId: () => "new" },
   );
 
   assert.equal(result.state.sessionId, "new");
   assert.deepEqual(
-    result.events.map(({ session_id }) => session_id),
-    [null, "new"],
+    result.events.map(({ type }) => type),
+    ["session_end", "session_start"],
   );
-  assert.equal(result.events[1].face_in_area, true);
 });
