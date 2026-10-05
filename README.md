@@ -17,7 +17,7 @@ npm test
 - Автоматический отказ от замеров: `POST http://127.0.0.1:8081/decline-measurements`
 - Сброс: `POST http://127.0.0.1:8081/reset`
 
-Порт задаётся переменной `PORT`. `/cycle` и `/decline-measurements` отправляют `session_start`, затем `tech` и snapshot, а после mock-стадий прослушивания и ожидания ответа — intro или отказ. `/reset` отменяет таймеры и отправляет `session_end`, не закрывая WebSocket.
+Порт задаётся переменной `PORT`. `/cycle` и `/decline-measurements` отправляют `session_start`, затем `tech` и snapshot, а после mock-стадий прослушивания и ожидания ответа — выбор замера на планшете или отказ. `/reset` отменяет таймеры и отправляет `session_end`, не закрывая WebSocket.
 
 ## Ручной mock-сценарий
 
@@ -37,15 +37,17 @@ npm test
 
 Доступные intents:
 
-- `begin_measurements` → `scan_intro_ready`
+- `start_session` («Начать сессию») → только `session_start`, без навигации. Mock-аватар frontend имитирует приветствие 8 секунд; через 5 секунд frontend сам открывает вводную, продолжая ту же имитацию. Stub не отправляет аудио.
+
+- `begin_measurements` («Хочу измериться») → `scan_selection_ready`: сразу экран выбора замера на планшете, с возможностью выбрать замер без вопросов о профиле.
 - `decline_measurements` → `measurements_declined`
-- `begin_profile_questions` → `profile_questions_ready`
-- `continue_with_profile`, `continue_without_profile` → `scan_selection_ready`
+- `begin_profile_questions` → `profile_questions_ready`, доступен после получения замеров
+- `continue_with_profile`, `continue_without_profile` → `results_intro_ready`, затем можно раскрыть категорию
 - `select_measurement` с `data.measurement` → `measurement_selected`
 - `start_measurement` → `measurement_started`
 - `complete_measurement` → `measurement_results_ready` и обновлённый `measurement_snapshot`
 - `reset_measurement` → `measurement_reset` и обновлённый snapshot
-- `finish_measurements` → `results_intro_ready`
+- `finish_measurements` → `profile_questions_ready` перед первым просмотром результатов. После ответа или пропуска профиля открывается `results_intro_ready`; при повторном завершении замеров профиль не запрашивается снова.
 - `resume_measurements` → `measurements_resume_ready`
 - `show_results_overview` → `results_view_ready` (`overview`)
 - `open_category` с `data.category` → `results_view_ready` (`category_cards`)

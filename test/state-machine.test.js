@@ -21,28 +21,55 @@ test("первая пользовательская фраза создаёт с
   );
 
   assert.equal(result.state.sessionId, "panel-session");
-  assert.equal(result.state.phase, PHASES.SCAN_INTRO);
+  assert.equal(result.state.phase, PHASES.SCAN_SELECTION);
   assert.deepEqual(
     result.events.map(({ type }) => type),
-    ["session_start", "scan_intro_ready"],
+    ["session_start", "scan_selection_ready"],
   );
+});
+
+test("после согласия можно сразу выбрать замер на планшете", () => {
+  const started = apply(createScenarioState("tablet-session"), "begin_measurements");
+  const selected = apply(started.state, "select_measurement", { measurement: "skin" });
+
+  assert.equal(selected.events[0].type, "measurement_selected");
+  assert.equal(selected.state.activeMeasurement, "skin");
+});
+
+test("начать сессию запускает только приветствие и не выбирает экран", () => {
+  const result = transitionScenario(null, { intent: "start_session" }, {
+    createSessionId: () => "greeting-session",
+  });
+  assert.equal(result.state.phase, PHASES.START);
+  assert.deepEqual(result.events.map(({ type }) => type), ["session_start"]);
+  assert.equal(apply(result.state, "start_session").events[0].status, "fail");
+});
+
+test("профиль запрашивается после замеров до открытия категорий", () => {
+  let state = apply(createScenarioState("profile-session"), "begin_measurements").state;
+  assert.equal(apply(state, "begin_profile_questions").events[0].status, "fail");
+  state = apply(state, "select_measurement", { measurement: "skin" }).state;
+  state = apply(state, "start_measurement").state;
+  state = apply(state, "complete_measurement").state;
+  const finished = apply(state, "finish_measurements");
+  assert.equal(finished.events[0].type, "profile_questions_ready");
+  assert.deepEqual(finished.state.completedMeasurements, ["skin"]);
+  assert.equal(apply(finished.state, "open_category", { category: "skin" }).events[0].status, "fail");
+  const skipped = apply(finished.state, "continue_without_profile");
+  assert.equal(skipped.events[0].type, "results_intro_ready");
+  assert.equal(apply(skipped.state, "open_category", { category: "skin" }).events[0].view, "category_cards");
+  state = apply(skipped.state, "resume_measurements").state;
+  state = apply(state, "select_measurement", { measurement: "vision" }).state;
+  state = apply(state, "start_measurement").state;
+  state = apply(state, "complete_measurement").state;
+  assert.equal(apply(state, "finish_measurements").events[0].type, "results_intro_ready");
 });
 
 test("полный intent-сценарий отдаёт production-like события без таймеров", () => {
   let state = createScenarioState("session-1");
 
   let   result = apply(state, "begin_measurements");
-  assert.deepEqual(result.events.map(({ type }) => type), ["scan_intro_ready"]);
-  state = result.state;
-
-  result = apply(state, "begin_profile_questions");
-  assert.equal(result.state.phase, PHASES.PROFILE_QUESTIONS);
-  assert.equal(result.events[0].type, "profile_questions_ready");
-  state = result.state;
-
-  result = apply(state, "continue_with_profile");
-  assert.equal(result.state.profileProvided, true);
-  assert.equal(result.events[0].type, "scan_selection_ready");
+  assert.deepEqual(result.events.map(({ type }) => type), ["scan_selection_ready"]);
   state = result.state;
 
   for (const measurement of ["skin", "heart_and_vessels", "vision"]) {
@@ -60,6 +87,10 @@ test("полный intent-сценарий отдаёт production-like собы
   }
 
   result = apply(state, "finish_measurements");
+  assert.equal(result.events[0].type, "profile_questions_ready");
+  state = result.state;
+  result = apply(state, "continue_with_profile");
+  assert.equal(result.state.profileProvided, true);
   assert.equal(result.events[0].type, "results_intro_ready");
   assert.equal(
     result.events[0].results.every(({ completed }) => completed),
@@ -133,8 +164,6 @@ test("reset_measurement удаляет результат и возвращае�
   let state = createScenarioState("session-3");
 
   state = apply(state, "begin_measurements").state;
-  state = apply(state, "begin_profile_questions").state;
-  state = apply(state, "continue_without_profile").state;
   state = apply(state, "select_measurement", { measurement: "skin" }).state;
   state = apply(state, "start_measurement").state;
   state = apply(state, "complete_measurement").state;
@@ -150,12 +179,11 @@ test("после частичных результатов можно верну
   let state = createScenarioState("session-4");
 
   state = apply(state, "begin_measurements").state;
-  state = apply(state, "begin_profile_questions").state;
-  state = apply(state, "continue_without_profile").state;
   state = apply(state, "select_measurement", { measurement: "skin" }).state;
   state = apply(state, "start_measurement").state;
   state = apply(state, "complete_measurement").state;
   state = apply(state, "finish_measurements").state;
+  state = apply(state, "continue_without_profile").state;
 
   const resumed = apply(state, "resume_measurements");
 
