@@ -161,19 +161,31 @@ test("guards отклоняют неверную фазу", () => {
 
 });
 
-test("reset_measurement удаляет результат и возвращает выбор", () => {
-  let state = createScenarioState("session-3");
-
-  state = apply(state, "begin_measurements").state;
-  state = apply(state, "select_measurement", { measurement: "derm" }).state;
-  state = apply(state, "start_measurement").state;
-  state = apply(state, "complete_measurement").state;
-
-  const result = apply(state, "reset_measurement", { measurement: "derm" });
-
-  assert.equal(result.events[0].type, "measurement_reset");
-  assert.equal(result.state.phase, PHASES.SCAN_SELECTION);
-  assert.deepEqual(result.state.completedMeasurements, []);
+test("reset_measurement передаёт активную зону и сохраняет полученные результаты", () => {
+  for (const zone of ["fpg", "cardio", "derm", "vision"]) {
+    for (const started of [false, true]) {
+      let state = createScenarioState("session-reset");
+      state = apply(state, "begin_measurements").state;
+      state = apply(state, "select_measurement", { measurement: zone }).state;
+      if (started) state = apply(state, "start_measurement").state;
+      state = { ...state, completedZones: ["derm"], completedMeasurements: ["skin"] };
+      const other = zone === "fpg" ? "cardio" : "fpg";
+      for (const wrong of [other, "heart_and_vessels", "skin"]) {
+        const rejected = apply(state, "reset_measurement", { measurement: wrong });
+        assert.equal(rejected.events[0].status, "fail");
+        assert.strictEqual(rejected.state, state);
+      }
+      const result = apply(state, "reset_measurement", { measurement: zone });
+      assert.equal(result.events[0].type, "measurement_reset");
+      assert.equal(result.events[0].measurement, zone);
+      assert.equal(result.state.phase, PHASES.SCAN_SELECTION);
+      assert.equal(result.state.activeZone, null);
+      assert.deepEqual(result.state.completedZones, state.completedZones);
+      assert.deepEqual(result.state.completedMeasurements, state.completedMeasurements);
+      const implicit = apply(state, "reset_measurement");
+      assert.equal(implicit.events[0].measurement, zone);
+    }
+  }
 });
 
 test("после частичных результатов можно вернуться к пропущенным замерам", () => {

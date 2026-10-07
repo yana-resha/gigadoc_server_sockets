@@ -46,7 +46,7 @@ npm test
 - `select_measurement` с `data.measurement: fpg | cardio | derm | vision` → `measurement_selected` с той же зоной в measurement.
 - `start_measurement` → `measurement_started`
 - `complete_measurement` → `measurement_results_ready` и обновлённый `measurement_snapshot`
-- `reset_measurement` → `measurement_reset` и обновлённый snapshot
+- `reset_measurement` → `measurement_reset` с конкретной активной зоной в `measurement` (`fpg`, `cardio`, `derm`, `vision`) и обновлённый snapshot; сбрасывает выбор/сканирование, сохраняет полученные результаты. Без data.measurement мок использует активную зону
 - `finish_measurements` → `profile_questions_ready` перед первым просмотром результатов. После ответа или пропуска профиля открывается `results_intro_ready`; при повторном завершении замеров профиль не запрашивается снова.
 - `resume_measurements` → `measurements_resume_ready`
 - `show_results_overview` → `results_view_ready` (`overview`)
