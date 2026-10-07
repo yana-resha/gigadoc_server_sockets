@@ -69,6 +69,7 @@ const sendMeasurementSnapshot = (socket, client) => {
       client.sessionId,
       client.scenario?.completedMeasurements ?? [],
       client.snapshotRevision,
+      client.scenario,
     ),
   );
 };
@@ -149,6 +150,9 @@ const handleMockUserIntent = (socket, client, payload) => {
   const createdSession = Boolean(client.sessionId && client.sessionId !== previousSessionId);
 
   if (IMMEDIATE_INTENTS.has(payload.intent)) {
+    if (result.events.some((event) => ["measurement_results_ready", "measurement_reset"].includes(event.type))) {
+      sendMeasurementSnapshot(socket, client);
+    }
     sendEvents(socket, result.events);
 
     if (createdSession) {
@@ -156,11 +160,6 @@ const handleMockUserIntent = (socket, client, payload) => {
       sendMeasurementSnapshot(socket, client);
     }
 
-    if (result.events.some((event) =>
-      ["measurement_results_ready", "measurement_reset"].includes(event.type),
-    )) {
-      sendMeasurementSnapshot(socket, client);
-    }
 
     return;
   }
@@ -180,6 +179,9 @@ const handleMockUserIntent = (socket, client, payload) => {
     sendActiveTech(socket, client, { i_am_thinking: true });
     schedule(client, () => {
       client.pendingTurn = false;
+      if (result.events.some((event) => ["measurement_selected", "measurement_started"].includes(event.type))) {
+        sendMeasurementSnapshot(socket, client);
+      }
       sendEvents(socket, result.events.filter((event) => event.type !== "session_start"));
       sendActiveTech(socket, client);
     }, MOCK_THINKING_DELAY_MS);

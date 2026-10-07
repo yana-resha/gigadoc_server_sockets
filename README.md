@@ -43,7 +43,7 @@ npm test
 - `decline_measurements` → `measurements_declined`
 - `begin_profile_questions` → `profile_questions_ready`, доступен после получения замеров
 - `continue_with_profile`, `continue_without_profile` → `results_intro_ready`, затем можно раскрыть категорию
-- `select_measurement` с `data.measurement` → `measurement_selected`
+- `select_measurement` с `data.measurement: fpg | cardio | derm | vision` → `measurement_selected` с той же зоной в measurement.
 - `start_measurement` → `measurement_started`
 - `complete_measurement` → `measurement_results_ready` и обновлённый `measurement_snapshot`
 - `reset_measurement` → `measurement_reset` и обновлённый snapshot
@@ -61,3 +61,7 @@ npm test
 Поддерживаемые категории: `skin`, `heart_and_vessels`, `vision`. Snapshot использует зоны SberMedAI: `fpg` и `cardio` для сердца, `derm` для кожи и `vision` для зрения. Ветка отказа не отправляет QR.
 
 Stub не синтезирует речь и не отправляет аудиочанки. Поток `voice_audio_chunk` / `voice_interrupt` проверяется с настоящим backend и 2DAvatar.
+
+FPG и cardio проходят независимо. Stub хранит активную и завершённые зоны и отправляет snapshot до `measurement_selected` / `measurement_started`, со статусами `created` / `started`. Завершение отдельной зоны обновляет только её результаты. Категория сердца завершена после обеих зон; повторный выбор завершённой зоны отклоняется. Завершение списка замеров и профиль доступны даже после одной зоны.
+
+`measurement_selected` и `measurement_started` содержат конкретную зону в measurement, без отдельного zone_id. Snapshot не нужен для выбора подписи экрана.

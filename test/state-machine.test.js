@@ -30,7 +30,7 @@ test("первая пользовательская фраза создаёт с
 
 test("после согласия можно сразу выбрать замер на планшете", () => {
   const started = apply(createScenarioState("tablet-session"), "begin_measurements");
-  const selected = apply(started.state, "select_measurement", { measurement: "skin" });
+  const selected = apply(started.state, "select_measurement", { measurement: "derm" });
 
   assert.equal(selected.events[0].type, "measurement_selected");
   assert.equal(selected.state.activeMeasurement, "skin");
@@ -40,6 +40,7 @@ test("начать сессию запускает только приветст
   const result = transitionScenario(null, { intent: "start_session" }, {
     createSessionId: () => "greeting-session",
   });
+
   assert.equal(result.state.phase, PHASES.START);
   assert.deepEqual(result.events.map(({ type }) => type), ["session_start"]);
   assert.equal(apply(result.state, "start_session").events[0].status, "fail");
@@ -48,7 +49,7 @@ test("начать сессию запускает только приветст
 test("профиль запрашивается после замеров до открытия категорий", () => {
   let state = apply(createScenarioState("profile-session"), "begin_measurements").state;
   assert.equal(apply(state, "begin_profile_questions").events[0].status, "fail");
-  state = apply(state, "select_measurement", { measurement: "skin" }).state;
+  state = apply(state, "select_measurement", { measurement: "derm" }).state;
   state = apply(state, "start_measurement").state;
   state = apply(state, "complete_measurement").state;
   const finished = apply(state, "finish_measurements");
@@ -72,8 +73,8 @@ test("полный intent-сценарий отдаёт production-like собы
   assert.deepEqual(result.events.map(({ type }) => type), ["scan_selection_ready"]);
   state = result.state;
 
-  for (const measurement of ["skin", "heart_and_vessels", "vision"]) {
-    result = apply(state, "select_measurement", { measurement });
+  for (const [measurement, zone_id] of [["skin", "derm"], ["heart_and_vessels", "fpg"], ["heart_and_vessels", "cardio"], ["vision", "vision"]]) {
+    result = apply(state, "select_measurement", { measurement: zone_id });
     assert.equal(result.events[0].type, "measurement_selected");
     state = result.state;
 
@@ -81,7 +82,7 @@ test("полный intent-сценарий отдаёт production-like собы
     assert.equal(result.events[0].type, "measurement_started");
     state = result.state;
 
-    result = apply(state, "complete_measurement", { measurement });
+    result = apply(state, "complete_measurement");
     assert.deepEqual(result.events.map(({ type }) => type), ["measurement_results_ready"]);
     state = result.state;
   }
@@ -164,11 +165,11 @@ test("reset_measurement удаляет результат и возвращае�
   let state = createScenarioState("session-3");
 
   state = apply(state, "begin_measurements").state;
-  state = apply(state, "select_measurement", { measurement: "skin" }).state;
+  state = apply(state, "select_measurement", { measurement: "derm" }).state;
   state = apply(state, "start_measurement").state;
   state = apply(state, "complete_measurement").state;
 
-  const result = apply(state, "reset_measurement", { measurement: "skin" });
+  const result = apply(state, "reset_measurement", { measurement: "derm" });
 
   assert.equal(result.events[0].type, "measurement_reset");
   assert.equal(result.state.phase, PHASES.SCAN_SELECTION);
@@ -179,7 +180,7 @@ test("после частичных результатов можно верну
   let state = createScenarioState("session-4");
 
   state = apply(state, "begin_measurements").state;
-  state = apply(state, "select_measurement", { measurement: "skin" }).state;
+  state = apply(state, "select_measurement", { measurement: "derm" }).state;
   state = apply(state, "start_measurement").state;
   state = apply(state, "complete_measurement").state;
   state = apply(state, "finish_measurements").state;
@@ -210,4 +211,29 @@ test("restart_session создаёт новую сессию мгновенно"
     result.events.map(({ type }) => type),
     ["session_end", "session_start"],
   );
+});
+
+test("две зоны сердца выбираются и завершаются независимо", () => {
+  const { buildMeasurementSnapshot } = require('../lib/protocol');
+  let state = apply(createScenarioState('zones'), 'begin_measurements').state;
+  assert.equal(apply(state, 'select_measurement', { measurement: 'heart_and_vessels' }).events[0].status, 'fail');
+  for (const zone_id of ['fpg', 'cardio']) {
+    const selected = apply(state, 'select_measurement', { measurement: zone_id });
+    assert.equal(selected.events[0].type, 'measurement_selected');
+    state = selected.state;
+    let snapshot = buildMeasurementSnapshot('zones', state.completedMeasurements, 1, state);
+    assert.equal(snapshot.data.zones.find((zone) => zone.zone_id === zone_id).status, 'created');
+    state = apply(state, 'start_measurement').state;
+    snapshot = buildMeasurementSnapshot('zones', state.completedMeasurements, 2, state);
+    assert.equal(snapshot.data.zones.find((zone) => zone.zone_id === zone_id).status, 'started');
+    state = apply(state, 'complete_measurement').state;
+    snapshot = buildMeasurementSnapshot('zones', state.completedMeasurements, 3, state);
+    assert.equal(snapshot.data.zones.find((zone) => zone.zone_id === zone_id).status, 'completed');
+    assert.equal(apply(state, 'select_measurement', { measurement: zone_id }).events[0].status, 'fail');
+    if (zone_id === 'fpg') {
+      assert.equal(snapshot.data.zones.find((zone) => zone.zone_id === 'cardio').status, 'not_started');
+      assert.equal(state.completedMeasurements.includes('heart_and_vessels'), false);
+    }
+  }
+  assert.equal(state.completedMeasurements.includes('heart_and_vessels'), true);
 });
