@@ -55,10 +55,10 @@ test("профиль запрашивается после замеров до �
   const finished = apply(state, "finish_measurements");
   assert.equal(finished.events[0].type, "profile_questions_ready");
   assert.deepEqual(finished.state.completedMeasurements, ["skin"]);
-  assert.equal(apply(finished.state, "open_category", { category: "skin" }).events[0].status, "fail");
+  assert.equal(apply(finished.state, "open_category", { category: "derm" }).events[0].status, "fail");
   const skipped = apply(finished.state, "continue_without_profile");
   assert.equal(skipped.events[0].type, "results_intro_ready");
-  assert.equal(apply(skipped.state, "open_category", { category: "skin" }).events[0].view, "category_cards");
+  assert.equal(apply(skipped.state, "open_category", { category: "derm" }).events[0].view, "category_cards");
   state = apply(skipped.state, "resume_measurements").state;
   state = apply(state, "select_measurement", { measurement: "vision" }).state;
   state = apply(state, "start_measurement").state;
@@ -99,7 +99,7 @@ test("полный intent-сценарий отдаёт production-like собы
   );
   state = result.state;
 
-  result = apply(state, "open_category", { category: "skin" });
+  result = apply(state, "open_category", { category: "derm" });
   assert.equal(result.events[0].view, "category_cards");
   state = result.state;
 
@@ -111,12 +111,12 @@ test("полный intent-сценарий отдаёт production-like собы
   });
   state = result.state;
 
-  result = apply(state, "open_category", { category: "skin" });
+  result = apply(state, "open_category", { category: "derm" });
   assert.equal(result.events[0].view, "category_cards");
   state = result.state;
 
   result = apply(state, "open_category_table", {
-    category: "heart_and_vessels",
+    category: "cardio",
   });
   assert.equal(result.events[0].view, "category_table");
   state = result.state;
@@ -248,4 +248,41 @@ test("две зоны сердца выбираются и завершаютс�
     }
   }
   assert.equal(state.completedMeasurements.includes('heart_and_vessels'), true);
+});
+
+test("сводки результатов передают четыре зоны, включая непройденные", () => {
+  const { buildMeasurementResults, buildResultsIntro } = require("../lib/protocol");
+  const results = buildMeasurementResults(["fpg"]);
+  assert.deepEqual(results, [
+    { type: "fpg", completed: true },
+    { type: "cardio", completed: false },
+    { type: "derm", completed: false },
+    { type: "vision", completed: false },
+  ]);
+  const intro = buildResultsIntro(["fpg", "cardio"]);
+  assert.deepEqual(intro.map(({ type }) => type), ["fpg", "cardio", "derm", "vision"]);
+  assert.equal(intro[0].deviations_count + intro[1].deviations_count, 3);
+  assert.equal(intro[2].deviations_count, 0);
+  let state = createScenarioState("zone-results");
+  state = apply(state, "begin_measurements").state;
+  state = apply(state, "select_measurement", { measurement: "fpg" }).state;
+  state = apply(state, "start_measurement").state;
+  const completed = apply(state, "complete_measurement");
+  assert.deepEqual(completed.events[0].results, results);
+  const finished = apply({ ...completed.state, profileProvided: true }, "finish_measurements");
+  assert.deepEqual(finished.events[0].results, buildResultsIntro(["fpg"]));
+});
+
+test("зоны в category открывают общий раздел сердца и сохраняются в событии", () => {
+  const state = { ...createScenarioState("category-zones"), phase: PHASES.RESULTS_INTRO, completedZones: ["fpg", "derm", "vision"] };
+  for (const intent of ["open_category", "open_category_table"]) {
+    for (const category of ["fpg", "cardio", "derm", "vision"]) {
+      const result = apply(state, intent, { category });
+      assert.equal(result.events[0].type, "results_view_ready");
+      assert.equal(result.events[0].category, category);
+    }
+    for (const category of ["heart_and_vessels", "skin", "unknown"]) {
+      assert.equal(apply(state, intent, { category }).events[0].status, "fail");
+    }
+  }
 });
