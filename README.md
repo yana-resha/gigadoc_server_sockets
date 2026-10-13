@@ -55,9 +55,9 @@ npm test
 - `show_all_deviations` → `results_view_ready` (`all_deviations`)
 - `show_all_indicators` → `results_view_ready` (`all_indicators`)
 - `save_results` → `qr`, затем `results_view_ready` (`qr`)
-- `finish_session` → выход с замерами или без них
+- `finish_session` → выход с замерами или без них; `session_exit_with_measurements` содержит `countdown_seconds: 60`
 - `restart_session` → новая сессия
-- `show_idle_warning` → `session_idle_warning`, сохраняет фазу и данные текущего сценария
+- `show_idle_warning` → `session_idle_warning` с `countdown_seconds: 15`, сохраняет фазу и данные текущего сценария
 - `continue_session` → повторяет прежнюю экранную команду после предупреждения; сразу после приветствия открывает `scan_intro_ready`
 - `end_session` → явный `session_end` без финального экрана
 
@@ -74,3 +74,5 @@ FPG и cardio проходят независимо. Stub хранит акти�
 `measurement_selected` и `measurement_started` содержат конкретную зону в measurement, без отдельного zone_id. Snapshot не нужен для выбора подписи экрана.
 
 `measurement_results_ready` и `results_intro_ready` передают полный массив четырёх зон (`results[].type`: fpg, cardio, derm, vision), включая непройденные с completed: false. Во вводной каждая зона содержит deviations_count. `results_view_ready.category` и mock intent data.category тоже принимают зоны; fpg/cardio открывают общий раздел сердца.
+
+`countdown_seconds` — необязательное неотрицательное целое число секунд для `session_idle_warning` и `session_exit_with_measurements`. При отсутствии или некорректном значении frontend принимает экран без ошибки и выбирает случайную длительность: 10–20 секунд для предупреждения, 45–75 для финала с QR. Истечение локального отсчёта не завершает сессию: для этого backend отправляет `session_end`.

@@ -19,6 +19,7 @@ test("предупреждение о простое сохраняет сцен
   const before = structuredClone(state);
   const warned = apply(state, "show_idle_warning");
   assert.equal(warned.events[0].type, "session_idle_warning");
+  assert.equal(warned.events[0].countdown_seconds, 15);
   assert.equal(warned.state.phase, before.phase);
   assert.equal(warned.state.sessionId, before.sessionId);
   assert.deepEqual(warned.state.completedZones, before.completedZones);
@@ -171,6 +172,7 @@ test("полный intent-сценарий отдаёт production-like собы
 
   result = apply(state, "finish_session");
   assert.equal(result.events[0].type, "session_exit_with_measurements");
+  assert.equal(result.events[0].countdown_seconds, 60);
   assert.equal(result.state.phase, PHASES.EXITED);
 });
 
