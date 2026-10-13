@@ -19,7 +19,7 @@ const SCENARIO_START_DELAY_MS = 1_000;
 const SESSION_RESTART_DELAY_MS = 250;
 const MOCK_LISTENING_DELAY_MS = 700;
 const MOCK_THINKING_DELAY_MS = 900;
-const IMMEDIATE_INTENTS = new Set(["start_session", "restart_session", "complete_measurement", "reset_measurement"]);
+const IMMEDIATE_INTENTS = new Set(["start_session", "restart_session", "complete_measurement", "reset_measurement", "show_idle_warning", "end_session"]);
 
 let sessionCounter = 0;
 const clients = new Map();
@@ -126,7 +126,7 @@ const restartCycle = async (socket, declineMeasurements = false) => {
 };
 
 const handleMockUserIntent = (socket, client, payload) => {
-  if (payload?.intent === "restart_session") {
+  if (["restart_session", "end_session"].includes(payload?.intent)) {
     clearTimers(client);
     client.pendingTurn = false;
   }

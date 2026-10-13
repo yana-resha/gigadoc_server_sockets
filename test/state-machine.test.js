@@ -13,6 +13,41 @@ const apply = (state, intent, data) =>
     ...(data ? { data } : {}),
   });
 
+test("предупреждение о простое сохраняет сценарий и возвращает прежнюю команду при продолжении", () => {
+  let state = apply(createScenarioState("idle-session"), "begin_measurements").state;
+  state = apply(state, "select_measurement", { measurement: "derm" }).state;
+  const before = structuredClone(state);
+  const warned = apply(state, "show_idle_warning");
+  assert.equal(warned.events[0].type, "session_idle_warning");
+  assert.equal(warned.state.phase, before.phase);
+  assert.equal(warned.state.sessionId, before.sessionId);
+  assert.deepEqual(warned.state.completedZones, before.completedZones);
+  const resumed = apply(warned.state, "continue_session");
+  assert.equal(resumed.events[0].type, "measurement_selected");
+  assert.equal(resumed.events[0].measurement, "derm");
+  assert.equal(resumed.state.idleWarningVisible, false);
+  assert.equal(apply(resumed.state, "continue_session").events[0].status, "fail");
+  const ended = apply(warned.state, "end_session");
+  assert.equal(ended.state, null);
+  assert.equal(ended.events[0].type, "session_end");
+});
+
+test("предупреждение без сессии отклоняется, после приветствия продолжение открывает вводную", () => {
+  assert.equal(apply(null, "show_idle_warning").events[0].status, "fail");
+  const warned = apply(createScenarioState("greeting-idle"), "show_idle_warning");
+  assert.equal(apply(warned.state, "continue_session").events[0].type, "scan_intro_ready");
+});
+
+test("продолжение после предупреждения не повторяет уже выполненный сброс замера", () => {
+  let state = apply(createScenarioState("reset-idle"), "begin_measurements").state;
+  state = apply(state, "select_measurement", { measurement: "fpg" }).state;
+  state = apply(state, "reset_measurement", { measurement: "fpg" }).state;
+  state = apply(state, "show_idle_warning").state;
+  const resumed = apply(state, "continue_session");
+  assert.equal(resumed.events[0].type, "scan_selection_ready");
+  assert.equal(resumed.state.activeZone, null);
+});
+
 test("первая пользовательская фраза создаёт сессию без HTTP-запуска", () => {
   const result = transitionScenario(
     null,
