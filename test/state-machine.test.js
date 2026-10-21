@@ -13,6 +13,42 @@ const apply = (state, intent, data) =>
     ...(data ? { data } : {}),
   });
 
+test("подробности каждого чекапа открываются плоским событием без замеров и не сбрасывают сессию", () => {
+  let state = createScenarioState("checkup-details");
+  for (const id of ["general", "heart", "skin", "vision"]) {
+    const result = apply(state, `open_checkup_${id}`);
+    assert.equal(result.state.phase, PHASES.CHECKUP_DETAILS);
+    assert.equal(result.state.sessionId, state.sessionId);
+    assert.deepEqual(result.state.completedZones, []);
+    assert.equal(result.events[0].type, `checkup_${id}_ready`);
+    assert.equal(result.events[0].status, "ok");
+    assert.equal(result.events[0].data, undefined);
+    assert.equal(result.events[0].category, undefined);
+    const warned = apply(result.state, "show_idle_warning");
+    assert.equal(apply(warned.state, "continue_session").events[0].type, `checkup_${id}_ready`);
+    assert.equal(apply(null, `open_checkup_${id}`).events[0].status, "fail");
+    state = result.state;
+  }
+  assert.equal(apply(state, "show_all_checkups").events[0].view, "all_checkups");
+  assert.equal(apply(state, "end_session").state, null);
+});
+
+test("каталог чекапов доступен без замеров, сохраняет результаты и позволяет начать замеры", () => {
+  const initial = createScenarioState("checkups-session");
+  const catalog = apply(initial, "show_all_checkups");
+  assert.equal(catalog.state.phase, PHASES.ALL_CHECKUPS);
+  assert.equal(catalog.events[0].type, "results_view_ready");
+  assert.equal(catalog.events[0].view, "all_checkups");
+  assert.deepEqual(catalog.state.completedZones, []);
+  assert.equal(apply(catalog.state, "begin_measurements").events[0].type, "scan_selection_ready");
+  const withResults = { ...initial, phase: PHASES.RESULTS_INTRO, completedZones: ["derm"], completedMeasurements: ["skin"] };
+  const fromResults = apply(withResults, "show_all_checkups");
+  assert.deepEqual(fromResults.state.completedZones, ["derm"]);
+  assert.equal(apply(fromResults.state, "show_results_overview").events[0].view, "overview");
+  assert.equal(apply(fromResults.state, "end_session").state, null);
+  assert.equal(apply(null, "show_all_checkups").events[0].status, "fail");
+});
+
 test("предупреждение о простое сохраняет сценарий и возвращает прежнюю команду при продолжении", () => {
   let state = apply(createScenarioState("idle-session"), "begin_measurements").state;
   state = apply(state, "select_measurement", { measurement: "derm" }).state;

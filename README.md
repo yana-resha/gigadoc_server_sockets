@@ -54,6 +54,8 @@ npm test
 - `open_category_table` с `data.category` → `results_view_ready` (`category_table`)
 - `show_all_deviations` → `results_view_ready` (`all_deviations`)
 - `show_all_indicators` → `results_view_ready` (`all_indicators`)
+- `open_checkup_general`, `open_checkup_heart`, `open_checkup_skin`, `open_checkup_vision` → отдельные плоские события `checkup_general_ready`, `checkup_heart_ready`, `checkup_skin_ready`, `checkup_vision_ready`. Доступны в активной сессии без замеров; назад к каталогу — `show_all_checkups`.
+- `show_all_checkups` → `results_view_ready` (`all_checkups`); доступен в любой активной сессии, без замеров. Показывает каталог чекапов, из него можно перейти к замерам или вернуться к полученным результатам.
 - `save_results` → `qr`, затем `results_view_ready` (`qr`)
 - `finish_session` → выход с замерами или без них; `session_exit_with_measurements` содержит `countdown_seconds: 60`
 - `restart_session` → новая сессия
