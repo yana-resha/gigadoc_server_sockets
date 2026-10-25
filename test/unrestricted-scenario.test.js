@@ -22,7 +22,9 @@ test("all panel intents work from every phase and without a session, without mut
       assert.ok(result.events.length > 0);
       assert.ok(result.events.every((event) => event.status === "ok"), `${phase}: ${intent}`);
       assert.deepEqual(state, before);
-      if (!state && intent !== "restart_session") assert.equal(result.events[0].type, "session_start");
+      if (!state && !["restart_session", "end_session", "finish_session"].includes(intent)) {
+        assert.equal(result.events[0].type, "session_start");
+      }
     }
   }
 });
@@ -65,4 +67,17 @@ test("normal scenario transitions retain their phase and measurement prerequisit
   }
   assert.equal(apply(state, "open_category", { category: "invalid" }).events[0].status, "fail");
   assert.equal(apply(state, "select_measurement", { measurement: "invalid" }).events[0].status, "fail");
+});
+
+test("repeated end actions do not create a session or emit a transient session_start", () => {
+  const initial = createScenarioState("completed-session");
+  const ended = apply(initial, "end_session");
+  assert.equal(ended.state, null);
+  for (const intent of ["end_session", "finish_session"]) {
+    const result = transitionUnrestrictedScenario(ended.state, { intent, unrestricted: true }, {
+      createSessionId: () => assert.fail("an end action must not create a new session"),
+    });
+    assert.equal(result.state, null);
+    assert.deepEqual(result.events, [{ status: "ok", type: "session_end" }]);
+  }
 });
