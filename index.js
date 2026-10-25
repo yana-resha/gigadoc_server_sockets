@@ -11,6 +11,7 @@ const {
 } = require("./lib/protocol");
 const { createOpenApiDocument } = require("./lib/openapi");
 const { createScenarioState, transitionScenario } = require("./lib/state-machine");
+const { transitionUnrestrictedScenario } = require("./lib/unrestricted-scenario");
 
 const PORT = Number(process.env.PORT) || 8081;
 const HOST = "127.0.0.1";
@@ -126,7 +127,7 @@ const restartCycle = async (socket, declineMeasurements = false) => {
 };
 
 const handleMockUserIntent = (socket, client, payload) => {
-  if (["restart_session", "end_session"].includes(payload?.intent)) {
+  if (payload?.unrestricted === true || ["restart_session", "end_session"].includes(payload?.intent)) {
     clearTimers(client);
     client.pendingTurn = false;
   }
@@ -138,7 +139,8 @@ const handleMockUserIntent = (socket, client, payload) => {
   }
 
   const previousSessionId = client.scenario?.sessionId ?? null;
-  const result = transitionScenario(client.scenario, payload, { createSessionId });
+  const transition = payload?.unrestricted === true ? transitionUnrestrictedScenario : transitionScenario;
+  const result = transition(client.scenario, payload, { createSessionId });
   if (result.events.some((event) => event.status === "fail")) {
     sendEvents(socket, result.events);
 
@@ -148,6 +150,18 @@ const handleMockUserIntent = (socket, client, payload) => {
   client.scenario = result.state;
   client.sessionId = result.state?.sessionId ?? null;
   const createdSession = Boolean(client.sessionId && client.sessionId !== previousSessionId);
+
+  if (payload.unrestricted === true) {
+    // Start/reset the frontend session before supplying fixture data and navigating.
+    sendEvents(socket, result.events.filter((event) => ["session_start", "session_end"].includes(event.type)));
+    if (client.sessionId) {
+      if (createdSession) client.snapshotRevision = 0;
+      sendMeasurementSnapshot(socket, client);
+    }
+    sendEvents(socket, result.events.filter((event) => !["session_start", "session_end"].includes(event.type)));
+    sendActiveTech(socket, client);
+    return;
+  }
 
   if (IMMEDIATE_INTENTS.has(payload.intent)) {
     if (result.events.some((event) => ["measurement_results_ready", "measurement_reset"].includes(event.type))) {
