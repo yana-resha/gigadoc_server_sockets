@@ -1,0 +1,961 @@
+{
+  "source": {
+    "catalog_version": "2026-10-28.3",
+    "catalog_sha256": "7cf5ccf2e1f30c1462430cf53be75037913c364cb6ee366b490a809bb40ee546",
+    "rules": "internal/model/measurement_parameter_rules.go",
+    "precision": "internal/service/measurementvalue/formatter.go",
+    "values": "Synthetic examples; status and label evaluated before rounding; sex=male"
+  },
+  "zones": [
+    {
+      "zone_id": "fpg",
+      "zone_name": "Зона фотоплетизмографии",
+      "results": [
+        {
+          "test_id": "general",
+          "test_name": "Общие показатели",
+          "attributes": [
+            {
+              "name": "Уровень стресса",
+              "indicator": "stress",
+              "type": "number",
+              "value": "650",
+              "unit": null,
+              "status": "problem",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 150,
+                  "status": "normal",
+                  "label": null
+                },
+                {
+                  "from": 150,
+                  "to": 500,
+                  "status": "deviation",
+                  "label": null
+                },
+                {
+                  "from": 500,
+                  "to": 900,
+                  "status": "problem",
+                  "label": null
+                },
+                {
+                  "from": 900,
+                  "to": 2000,
+                  "status": "serious",
+                  "label": null
+                }
+              ]
+            },
+            {
+              "name": "Уровень усталости",
+              "indicator": "fatigue",
+              "type": "string",
+              "value": "middle",
+              "unit": null,
+              "status": "deviation",
+              "label": "Средний",
+              "step_values": []
+            },
+            {
+              "name": "Пульс",
+              "indicator": "hr",
+              "type": "number",
+              "value": "72",
+              "unit": "уд/мин",
+              "status": "normal",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 40,
+                  "status": "problem",
+                  "label": null
+                },
+                {
+                  "from": 40,
+                  "to": 60,
+                  "status": "deviation",
+                  "label": null
+                },
+                {
+                  "from": 60,
+                  "to": 100,
+                  "status": "normal",
+                  "label": null
+                },
+                {
+                  "from": 100,
+                  "to": 200,
+                  "status": "problem",
+                  "label": null
+                }
+              ]
+            },
+            {
+              "name": "Индекс здоровья",
+              "indicator": "health_index",
+              "type": "number",
+              "value": "8",
+              "unit": null,
+              "status": "normal",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 4,
+                  "status": "serious",
+                  "label": null
+                },
+                {
+                  "from": 4,
+                  "to": 7,
+                  "status": "deviation",
+                  "label": null
+                },
+                {
+                  "from": 7,
+                  "to": 10,
+                  "status": "normal",
+                  "label": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "test_id": "heart_health",
+          "test_name": "Здоровье сердца",
+          "attributes": [
+            {
+              "name": "Жесткость сосудов",
+              "indicator": "rigidity",
+              "type": "number",
+              "value": "8",
+              "unit": null,
+              "status": "deviation",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 7,
+                  "status": "normal",
+                  "label": null
+                },
+                {
+                  "from": 7,
+                  "to": 10,
+                  "status": "deviation",
+                  "label": null
+                },
+                {
+                  "from": 10,
+                  "to": 12,
+                  "status": "problem",
+                  "label": null
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zone_id": "cardio",
+      "zone_name": "Зона кардио",
+      "results": [
+        {
+          "test_id": "cardio",
+          "test_name": "Кардиокарта",
+          "attributes": [
+            {
+              "name": "Пульс",
+              "indicator": "heart_rate",
+              "type": "number",
+              "value": "108",
+              "unit": "уд/мин",
+              "status": "problem",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 40,
+                  "status": "problem",
+                  "label": null
+                },
+                {
+                  "from": 40,
+                  "to": 60,
+                  "status": "deviation",
+                  "label": null
+                },
+                {
+                  "from": 60,
+                  "to": 100,
+                  "status": "normal",
+                  "label": null
+                },
+                {
+                  "from": 100,
+                  "to": 200,
+                  "status": "problem",
+                  "label": null
+                }
+              ]
+            },
+            {
+              "name": "ЖЭС, количество",
+              "indicator": "ventricular_extrasystole",
+              "type": "number",
+              "value": "3",
+              "unit": null,
+              "status": "deviation",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 2,
+                  "status": "normal",
+                  "label": null
+                },
+                {
+                  "from": 2,
+                  "to": 5,
+                  "status": "deviation",
+                  "label": null
+                }
+              ]
+            },
+            {
+              "name": "Ритм синусовый",
+              "indicator": "sinusoidal_rhythm",
+              "type": "boolean",
+              "value": "true",
+              "unit": null,
+              "status": "normal",
+              "label": null,
+              "step_values": []
+            },
+            {
+              "name": "НЖЭС, количество",
+              "indicator": "supraventricular_extrasystole",
+              "type": "number",
+              "value": "0",
+              "unit": null,
+              "status": "normal",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 2,
+                  "status": "normal",
+                  "label": null
+                },
+                {
+                  "from": 2,
+                  "to": 5,
+                  "status": "deviation",
+                  "label": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "test_id": "cardiointervalography",
+          "test_name": "Кардиоинтервалография",
+          "attributes": [
+            {
+              "name": "Стресс-индекс SI",
+              "indicator": "stress_index",
+              "type": "number",
+              "value": "350.2",
+              "unit": null,
+              "status": "deviation",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 150,
+                  "status": "normal",
+                  "label": null
+                },
+                {
+                  "from": 150,
+                  "to": 500,
+                  "status": "deviation",
+                  "label": null
+                },
+                {
+                  "from": 500,
+                  "to": 900,
+                  "status": "problem",
+                  "label": null
+                },
+                {
+                  "from": 900,
+                  "to": 2000,
+                  "status": "serious",
+                  "label": null
+                }
+              ]
+            },
+            {
+              "name": "ПАРС",
+              "indicator": "regulatory_systems_activity",
+              "type": "number",
+              "value": "8",
+              "unit": null,
+              "status": "deviation",
+              "label": "Перенапряжение",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 4,
+                  "status": "normal",
+                  "label": "Адаптация в норме"
+                },
+                {
+                  "from": 4,
+                  "to": 6,
+                  "status": "deviation",
+                  "label": "Небольшое напряжение"
+                },
+                {
+                  "from": 6,
+                  "to": 8,
+                  "status": "deviation",
+                  "label": "Перенапряжение"
+                },
+                {
+                  "from": 8,
+                  "to": 10,
+                  "status": "problem",
+                  "label": "Сильная усталость"
+                }
+              ]
+            },
+            {
+              "name": "Вариабельность сердечного ритма",
+              "indicator": "heart_rate_variability",
+              "type": "string",
+              "value": "Умеренно снижена",
+              "unit": null,
+              "status": null,
+              "label": null,
+              "step_values": []
+            },
+            {
+              "name": "TP, суммарная мощность спектра",
+              "indicator": "tp",
+              "type": "number",
+              "value": "3200",
+              "unit": "мс²",
+              "status": null,
+              "label": null,
+              "step_values": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zone_id": "derm",
+      "zone_name": "Зона кожи",
+      "results": [
+        {
+          "test_id": "skin",
+          "test_name": "Кожа",
+          "attributes": [
+            {
+              "name": "Покраснение",
+              "indicator": "redness",
+              "type": "number",
+              "value": "10",
+              "unit": null,
+              "status": "serious",
+              "label": "Крайне выраженная",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "status": "normal",
+                  "label": "Признак отсутствует"
+                },
+                {
+                  "from": 0,
+                  "to": 3,
+                  "status": "normal",
+                  "label": "Лёгкая"
+                },
+                {
+                  "from": 3,
+                  "to": 6,
+                  "status": "normal",
+                  "label": "Умеренная"
+                },
+                {
+                  "from": 6,
+                  "to": 9,
+                  "status": "problem",
+                  "label": "Выраженная"
+                },
+                {
+                  "from": 9,
+                  "to": 10,
+                  "status": "serious",
+                  "label": "Крайне выраженная"
+                }
+              ]
+            },
+            {
+              "name": "Шелушение",
+              "indicator": "exfoliation",
+              "type": "number",
+              "value": "6",
+              "unit": null,
+              "status": "problem",
+              "label": "Выраженная",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "status": "normal",
+                  "label": "Признак отсутствует"
+                },
+                {
+                  "from": 0,
+                  "to": 3,
+                  "status": "normal",
+                  "label": "Лёгкая"
+                },
+                {
+                  "from": 3,
+                  "to": 6,
+                  "status": "normal",
+                  "label": "Умеренная"
+                },
+                {
+                  "from": 6,
+                  "to": 9,
+                  "status": "problem",
+                  "label": "Выраженная"
+                },
+                {
+                  "from": 9,
+                  "to": 10,
+                  "status": "serious",
+                  "label": "Крайне выраженная"
+                }
+              ]
+            },
+            {
+              "name": "Неровный тон и текстура",
+              "indicator": "uneven_tone_texture",
+              "type": "number",
+              "value": "9",
+              "unit": null,
+              "status": "problem",
+              "label": "Выраженная",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "status": "normal",
+                  "label": "Признак отсутствует"
+                },
+                {
+                  "from": 0,
+                  "to": 3,
+                  "status": "normal",
+                  "label": "Лёгкая"
+                },
+                {
+                  "from": 3,
+                  "to": 6,
+                  "status": "normal",
+                  "label": "Умеренная"
+                },
+                {
+                  "from": 6,
+                  "to": 9,
+                  "status": "problem",
+                  "label": "Выраженная"
+                },
+                {
+                  "from": 9,
+                  "to": 10,
+                  "status": "serious",
+                  "label": "Крайне выраженная"
+                }
+              ]
+            },
+            {
+              "name": "Жирный блеск",
+              "indicator": "greasy_shine",
+              "type": "number",
+              "value": "2",
+              "unit": null,
+              "status": "normal",
+              "label": "Лёгкая",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "status": "normal",
+                  "label": "Признак отсутствует"
+                },
+                {
+                  "from": 0,
+                  "to": 3,
+                  "status": "normal",
+                  "label": "Лёгкая"
+                },
+                {
+                  "from": 3,
+                  "to": 6,
+                  "status": "normal",
+                  "label": "Умеренная"
+                },
+                {
+                  "from": 6,
+                  "to": 9,
+                  "status": "problem",
+                  "label": "Выраженная"
+                },
+                {
+                  "from": 9,
+                  "to": 10,
+                  "status": "serious",
+                  "label": "Крайне выраженная"
+                }
+              ]
+            },
+            {
+              "name": "Комедоны",
+              "indicator": "comedone",
+              "type": "number",
+              "value": "0",
+              "unit": null,
+              "status": "normal",
+              "label": "Лёгкая",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "status": "normal",
+                  "label": "Признак отсутствует"
+                },
+                {
+                  "from": 0,
+                  "to": 3,
+                  "status": "normal",
+                  "label": "Лёгкая"
+                },
+                {
+                  "from": 3,
+                  "to": 6,
+                  "status": "normal",
+                  "label": "Умеренная"
+                },
+                {
+                  "from": 6,
+                  "to": 9,
+                  "status": "problem",
+                  "label": "Выраженная"
+                },
+                {
+                  "from": 9,
+                  "to": 10,
+                  "status": "serious",
+                  "label": "Крайне выраженная"
+                }
+              ]
+            },
+            {
+              "name": "Расширенные поры",
+              "indicator": "enlarged_pores",
+              "type": "number",
+              "value": "4",
+              "unit": null,
+              "status": "normal",
+              "label": "Умеренная",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "status": "normal",
+                  "label": "Признак отсутствует"
+                },
+                {
+                  "from": 0,
+                  "to": 3,
+                  "status": "normal",
+                  "label": "Лёгкая"
+                },
+                {
+                  "from": 3,
+                  "to": 6,
+                  "status": "normal",
+                  "label": "Умеренная"
+                },
+                {
+                  "from": 6,
+                  "to": 9,
+                  "status": "problem",
+                  "label": "Выраженная"
+                },
+                {
+                  "from": 9,
+                  "to": 10,
+                  "status": "serious",
+                  "label": "Крайне выраженная"
+                }
+              ]
+            },
+            {
+              "name": "Гиперпигментация",
+              "indicator": "dark_spots",
+              "type": "number",
+              "value": "3",
+              "unit": null,
+              "status": "normal",
+              "label": "Умеренная",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "status": "normal",
+                  "label": "Признак отсутствует"
+                },
+                {
+                  "from": 0,
+                  "to": 3,
+                  "status": "normal",
+                  "label": "Лёгкая"
+                },
+                {
+                  "from": 3,
+                  "to": 6,
+                  "status": "normal",
+                  "label": "Умеренная"
+                },
+                {
+                  "from": 6,
+                  "to": 9,
+                  "status": "problem",
+                  "label": "Выраженная"
+                },
+                {
+                  "from": 9,
+                  "to": 10,
+                  "status": "serious",
+                  "label": "Крайне выраженная"
+                }
+              ]
+            },
+            {
+              "name": "Круги и мешки под глазами",
+              "indicator": "eyes_circles_blisters",
+              "type": "number",
+              "value": "0",
+              "unit": null,
+              "status": "normal",
+              "label": "Признак отсутствует",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "status": "normal",
+                  "label": "Признак отсутствует"
+                },
+                {
+                  "from": 0,
+                  "to": 3,
+                  "status": "normal",
+                  "label": "Лёгкая"
+                },
+                {
+                  "from": 3,
+                  "to": 6,
+                  "status": "normal",
+                  "label": "Умеренная"
+                },
+                {
+                  "from": 6,
+                  "to": 9,
+                  "status": "problem",
+                  "label": "Выраженная"
+                },
+                {
+                  "from": 9,
+                  "to": 10,
+                  "status": "serious",
+                  "label": "Крайне выраженная"
+                }
+              ]
+            },
+            {
+              "name": "Воспалительные элементы",
+              "indicator": "inflammatory_elements",
+              "type": "number",
+              "value": "0",
+              "unit": null,
+              "status": "normal",
+              "label": "Признак отсутствует",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "status": "normal",
+                  "label": "Признак отсутствует"
+                },
+                {
+                  "from": 0,
+                  "to": 3,
+                  "status": "normal",
+                  "label": "Лёгкая"
+                },
+                {
+                  "from": 3,
+                  "to": 6,
+                  "status": "normal",
+                  "label": "Умеренная"
+                },
+                {
+                  "from": 6,
+                  "to": 9,
+                  "status": "problem",
+                  "label": "Выраженная"
+                },
+                {
+                  "from": 9,
+                  "to": 10,
+                  "status": "serious",
+                  "label": "Крайне выраженная"
+                }
+              ]
+            },
+            {
+              "name": "Постакне",
+              "indicator": "post_acne",
+              "type": "number",
+              "value": "6",
+              "unit": null,
+              "status": "normal",
+              "label": "Умеренная",
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "status": "normal",
+                  "label": "Признак отсутствует"
+                },
+                {
+                  "from": 0,
+                  "to": 3,
+                  "status": "normal",
+                  "label": "Лёгкая"
+                },
+                {
+                  "from": 3,
+                  "to": 6,
+                  "status": "normal",
+                  "label": "Умеренная"
+                },
+                {
+                  "from": 6,
+                  "to": 9,
+                  "status": "problem",
+                  "label": "Выраженная"
+                },
+                {
+                  "from": 9,
+                  "to": 10,
+                  "status": "serious",
+                  "label": "Крайне выраженная"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zone_id": "vision",
+      "zone_name": "Зона зрения",
+      "results": [
+        {
+          "test_id": "acuity",
+          "test_name": "Тест на остроту зрения",
+          "attributes": [
+            {
+              "name": "Острота левого глаза",
+              "indicator": "leftEyeAcuity",
+              "type": "string",
+              "value": "0.9",
+              "unit": null,
+              "status": "deviation",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0.1,
+                  "to": 0.7,
+                  "status": "problem",
+                  "label": null
+                },
+                {
+                  "from": 0.7,
+                  "to": 0.9,
+                  "status": "deviation",
+                  "label": null
+                },
+                {
+                  "from": 0.9,
+                  "to": 1,
+                  "status": "normal",
+                  "label": null
+                }
+              ]
+            },
+            {
+              "name": "Острота правого глаза",
+              "indicator": "rightEyeAcuity",
+              "type": "string",
+              "value": "1",
+              "unit": null,
+              "status": "normal",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0.1,
+                  "to": 0.7,
+                  "status": "problem",
+                  "label": null
+                },
+                {
+                  "from": 0.7,
+                  "to": 0.9,
+                  "status": "deviation",
+                  "label": null
+                },
+                {
+                  "from": 0.9,
+                  "to": 1,
+                  "status": "normal",
+                  "label": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "test_id": "contrast_ratio",
+          "test_name": "Тест на контрастность",
+          "attributes": [
+            {
+              "name": "Пороговое значение контрастности",
+              "indicator": "contrast",
+              "type": "string",
+              "value": "5",
+              "unit": "%",
+              "status": "normal",
+              "label": null,
+              "step_values": [
+                {
+                  "from": 0,
+                  "to": 1,
+                  "status": "problem",
+                  "label": null
+                },
+                {
+                  "from": 1,
+                  "to": 10,
+                  "status": "normal",
+                  "label": null
+                },
+                {
+                  "from": 10,
+                  "to": 30,
+                  "status": "deviation",
+                  "label": null
+                },
+                {
+                  "from": 30,
+                  "to": 100,
+                  "status": "problem",
+                  "label": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "test_id": "colour_perception",
+          "test_name": "Тест на цветовосприятие",
+          "attributes": [
+            {
+              "name": "Диагноз по красному спектру",
+              "indicator": "redSegment",
+              "type": "string",
+              "value": "Без отклонений",
+              "unit": null,
+              "status": "normal",
+              "label": "Без отклонений",
+              "step_values": []
+            },
+            {
+              "name": "Диагноз по зелёному спектру",
+              "indicator": "greenSegment",
+              "type": "string",
+              "value": "Снижена чувствительность",
+              "unit": null,
+              "status": "deviation",
+              "label": "Снижена чувствительность",
+              "step_values": []
+            },
+            {
+              "name": "Диагноз по синему спектру",
+              "indicator": "blueSegment",
+              "type": "string",
+              "value": "",
+              "unit": null,
+              "status": null,
+              "label": null,
+              "step_values": []
+            }
+          ]
+        },
+        {
+          "test_id": "amsler",
+          "test_name": "Тест Амслера",
+          "attributes": [
+            {
+              "name": "Правый глаз",
+              "indicator": "rightEye",
+              "type": "string",
+              "value": "Не выявлены нарушения",
+              "unit": null,
+              "status": "normal",
+              "label": null,
+              "step_values": []
+            },
+            {
+              "name": "Левый глаз",
+              "indicator": "leftEye",
+              "type": "string",
+              "value": "Патология выявлена",
+              "unit": null,
+              "status": "deviation",
+              "label": null,
+              "step_values": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

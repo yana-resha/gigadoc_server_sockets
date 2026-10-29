@@ -334,7 +334,7 @@ test("сводки результатов передают четыре зоны
   ]);
   const intro = buildResultsIntro(["fpg", "cardio"]);
   assert.deepEqual(intro.map(({ type }) => type), ["fpg", "cardio", "derm", "vision"]);
-  assert.equal(intro[0].deviations_count + intro[1].deviations_count, 3);
+  assert.equal(intro[0].deviations_count + intro[1].deviations_count, 6);
   assert.equal(intro[2].deviations_count, 0);
   let state = createScenarioState("zone-results");
   state = apply(state, "begin_measurements").state;
