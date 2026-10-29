@@ -1,5 +1,11 @@
 {
   "type": "params",
+  "main_params": [
+    { "key": "upper_ap", "status": "low" },
+    { "key": "cholesterol", "status": "high" },
+    { "key": "cardiac_age", "status": "high" },
+    { "key": "heart_rate", "status": "normal" }
+  ],
   "age": { "value": 31 },
   "real_age": { "value": 20 },
   "age_std": { "value": "2" },
@@ -33,7 +39,7 @@
       { "from": 38.5, "to": 40, "status": "serious" }
     ]
   },
-  "cardiac_age": { "value": 47, "status": "normal" },
+  "cardiac_age": { "value": 47, "status": "problem" },
   "wellness_score": { "value": 3, "status": "deviation" },
   "diabetes": { "value": 20, "status": "normal" },
   "emotion": { "value": "Happiness" },

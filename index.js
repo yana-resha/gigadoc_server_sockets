@@ -896,6 +896,12 @@ wss.on("connection", (ws) => {
 
           message = {
             type: "params",
+            main_params: [
+              { key: "upper_ap", status: "low" },
+              { key: "cholesterol", status: "high" },
+              { key: "cardiac_age", status: "high" },
+              { key: "heart_rate", status: "normal" },
+            ],
             age: { value: 31 },
             real_age: { value: 20 },
             age_std: { value: "2" },
@@ -937,7 +943,7 @@ wss.on("connection", (ws) => {
 
             cardiac_age: {
               value: 47,
-              status: "normal",
+              status: "problem",
               step_values: [
                 { from: 14, to: 18.5, status: "deviation" },
                 { from: 18.5, to: 25, status: "normal" },
