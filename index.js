@@ -6,7 +6,7 @@ const { WebSocketServer, WebSocket } = require("ws");
 
 const {
   buildMeasurementSnapshot,
-  buildTechMessage,
+  buildVoiceStateMessage,
   fail,
 } = require("./lib/protocol");
 const { createOpenApiDocument } = require("./lib/openapi");
@@ -35,17 +35,22 @@ const sendJson = (socket, message) => {
   if (socket.readyState !== WebSocket.OPEN) return false;
 
   socket.send(JSON.stringify(message));
+  const client = clients.get(socket);
+  if (client && message.type === "session_start") client.frontendSessionActive = true;
+  if (client && message.type === "session_end") client.frontendSessionActive = false;
   console.log("➡️ ", message);
 
   return true;
 };
 
-const sendEvents = (socket, events) => {
-  events.forEach((event) => sendJson(socket, event));
-};
+const sendVoiceState = (socket, state) => sendJson(socket, buildVoiceStateMessage(state));
 
-const sendActiveTech = (socket, client, overrides = {}) =>
-  sendJson(socket, buildTechMessage(client.sessionId, overrides));
+const sendEvents = (socket, events) => {
+  events.forEach((event) => {
+    sendJson(socket, event);
+    if (event.type === "session_end") sendVoiceState(socket, "waiting");
+  });
+};
 
 const clearTimers = (client) => {
   client.timers.forEach(clearTimeout);
@@ -85,7 +90,9 @@ const resetClientSession = (socket) => {
   client.sessionId = null;
   client.scenario = null;
   client.snapshotRevision = 0;
-  return sendJson(socket, { status: "ok", type: "session_end" });
+  const sent = sendJson(socket, { status: "ok", type: "session_end" });
+  sendVoiceState(socket, "waiting");
+  return sent;
 };
 
 const startCycle = (socket, declineMeasurements = false) => {
@@ -99,7 +106,7 @@ const startCycle = (socket, declineMeasurements = false) => {
   client.snapshotRevision = 0;
 
   sendJson(socket, { status: "ok", type: "session_start" });
-  sendJson(socket, buildTechMessage(client.sessionId));
+  sendVoiceState(socket, "waiting");
   sendMeasurementSnapshot(socket, client);
   schedule(client, () => {
     handleMockUserIntent(socket, client, {
@@ -143,61 +150,55 @@ const handleMockUserIntent = (socket, client, payload) => {
   const result = transition(client.scenario, payload, { createSessionId });
   if (result.events.some((event) => event.status === "fail")) {
     sendEvents(socket, result.events);
+    sendVoiceState(socket, "waiting");
 
     return;
   }
 
   client.scenario = result.state;
   client.sessionId = result.state?.sessionId ?? null;
-  const createdSession = Boolean(client.sessionId && client.sessionId !== previousSessionId);
-
-  if (payload.unrestricted === true) {
-    // Start/reset the frontend session before supplying fixture data and navigating.
-    sendEvents(socket, result.events.filter((event) => ["session_start", "session_end"].includes(event.type)));
-    if (client.sessionId) {
-      if (createdSession) client.snapshotRevision = 0;
-      sendMeasurementSnapshot(socket, client);
-    }
-    sendEvents(socket, result.events.filter((event) => !["session_start", "session_end"].includes(event.type)));
-    sendActiveTech(socket, client);
-    return;
+  const createdSession = Boolean(client.sessionId &&
+    (client.sessionId !== previousSessionId || !client.frontendSessionActive));
+  // A replacement click may reuse a session whose delayed start was never sent.
+  if (createdSession && !result.events.some((event) => event.type === "session_start")) {
+    result.events.unshift({ status: "ok", type: "session_start" });
   }
 
-  if (IMMEDIATE_INTENTS.has(payload.intent)) {
-    if (result.events.some((event) => ["measurement_results_ready", "measurement_reset"].includes(event.type))) {
-      sendMeasurementSnapshot(socket, client);
-    }
-    sendEvents(socket, result.events);
-
-    if (createdSession) {
-      client.snapshotRevision = 0;
-      sendMeasurementSnapshot(socket, client);
-    }
-
-
-    return;
-  }
-
-  if (createdSession) {
-    client.snapshotRevision = 0;
-    sendJson(socket, { status: "ok", type: "session_start" });
-  }
-
-  sendActiveTech(socket, client, { mic_in_progress: true });
-  if (createdSession) {
-    sendMeasurementSnapshot(socket, client);
-  }
-
-  client.pendingTurn = true;
-  schedule(client, () => {
-    sendActiveTech(socket, client, { i_am_thinking: true });
-    schedule(client, () => {
-      client.pendingTurn = false;
-      if (result.events.some((event) => ["measurement_selected", "measurement_started"].includes(event.type))) {
+  const deliverResult = () => {
+    if (payload.unrestricted === true) {
+      // Start/reset before fixture data and navigation, preserving wire order.
+      sendEvents(socket, result.events.filter((event) => ["session_start", "session_end"].includes(event.type)));
+      if (client.sessionId) {
+        if (createdSession) client.snapshotRevision = 0;
         sendMeasurementSnapshot(socket, client);
       }
-      sendEvents(socket, result.events.filter((event) => event.type !== "session_start"));
-      sendActiveTech(socket, client);
+      sendEvents(socket, result.events.filter((event) => !["session_start", "session_end"].includes(event.type)));
+    } else {
+      if (createdSession) {
+        client.snapshotRevision = 0;
+        sendEvents(socket, result.events.filter((event) => ["session_start", "session_end"].includes(event.type)));
+      }
+      if (createdSession || result.events.some((event) => ["measurement_selected", "measurement_started", "measurement_results_ready", "measurement_reset"].includes(event.type))) {
+        sendMeasurementSnapshot(socket, client);
+      }
+      sendEvents(socket, result.events.filter((event) => !createdSession || !["session_start", "session_end"].includes(event.type)));
+    }
+    sendVoiceState(socket, "waiting");
+  };
+
+  if (IMMEDIATE_INTENTS.has(payload.intent)) {
+    deliverResult();
+    return;
+  }
+
+  // Statuses precede the first session_start, just as on the production backend.
+  client.pendingTurn = true;
+  sendVoiceState(socket, "listening");
+  schedule(client, () => {
+    sendVoiceState(socket, "thinking");
+    schedule(client, () => {
+      client.pendingTurn = false;
+      deliverResult();
     }, MOCK_THINKING_DELAY_MS);
   }, MOCK_LISTENING_DELAY_MS);
 };
@@ -270,9 +271,11 @@ webSocketServer.on("connection", (socket) => {
     scenario: null,
     snapshotRevision: 0,
     pendingTurn: false,
+    frontendSessionActive: false,
     timers: new Set(),
   };
   clients.set(socket, client);
+  sendVoiceState(socket, "waiting");
   console.log("✅ Frontend подключён и ожидает запуска /cycle");
 
   socket.on("message", (rawMessage) => {

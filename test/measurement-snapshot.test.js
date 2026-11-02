@@ -13,7 +13,7 @@ const attributes = (message, zoneId) => message.data.zones.filter(z => !zoneId |
 const byCode = (message, zoneId) => Object.fromEntries(attributes(message, zoneId).map(a => [a.indicator, a]));
 const isDeviation = a => ["deviation", "problem", "serious"].includes(a.status);
 
-test("tech содержит только используемые frontend флаги состояния", () => {
+test("legacy tech сохраняет совместимый формат без управления голосовыми подписями", () => {
   const tech = buildTechMessage("mock-session", { mic_in_progress: true, i_am_thinking: true });
   assert.equal(tech.mic_in_progress, true);
   assert.equal(tech.i_am_thinking, true);
