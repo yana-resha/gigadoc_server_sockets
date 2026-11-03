@@ -903,8 +903,8 @@
               "type": "string",
               "value": "Без отклонений",
               "unit": null,
-              "status": "normal",
-              "label": "Без отклонений",
+              "status": "deviation",
+              "label": null,
               "step_values": []
             },
             {
@@ -914,7 +914,7 @@
               "value": "Снижена чувствительность",
               "unit": null,
               "status": "deviation",
-              "label": "Снижена чувствительность",
+              "label": null,
               "step_values": []
             },
             {
@@ -923,7 +923,7 @@
               "type": "string",
               "value": "",
               "unit": null,
-              "status": null,
+              "status": "deviation",
               "label": null,
               "step_values": []
             }

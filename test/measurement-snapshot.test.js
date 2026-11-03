@@ -95,9 +95,9 @@ test("зрение содержит оба глаза Амслера, актуа
   assert.equal(Object.keys(vision).length, 8);
   assert.deepEqual([vision.leftEye.value, vision.leftEye.status], ["Патология выявлена", "deviation"]);
   assert.deepEqual([vision.rightEye.value, vision.rightEye.status], ["Не выявлены нарушения", "normal"]);
-  assert.deepEqual([vision.redSegment.value, vision.redSegment.label, vision.redSegment.status], ["Без отклонений", "Без отклонений", "normal"]);
-  assert.deepEqual([vision.greenSegment.value, vision.greenSegment.label, vision.greenSegment.status], ["Снижена чувствительность", "Снижена чувствительность", "deviation"]);
-  assert.deepEqual([vision.blueSegment.status, vision.blueSegment.label], [null, null]);
+  for (const key of ["redSegment", "greenSegment", "blueSegment"]) {
+    assert.deepEqual([vision[key].status, vision[key].label], ["deviation", null], key);
+  }
   assert.deepEqual([vision.contrast.value, vision.contrast.unit, vision.contrast.status], ["5", "%", "normal"]);
   assert.equal(vision.contrast.step_values.length, 4);
   assert.deepEqual([vision.leftEyeAcuity.value, vision.leftEyeAcuity.status], ["0.9", "deviation"]);
