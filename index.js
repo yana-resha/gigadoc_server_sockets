@@ -1252,6 +1252,29 @@ wss.on("connection", (ws) => {
               ],
             },
 
+            fat_mass_kg: { value: 18, step_values: [] },
+            body_fat_percent: {
+              value: 25,
+              status: "deviation",
+              // Тестовый диапазон для отображения «выше нормы».
+              step_values: [{ from: 18, to: 24, status: "normal" }],
+            },
+            fat_free_mass_kg: { value: 54, step_values: [] },
+            active_cell_mass_kg: { value: 27, step_values: [] },
+            active_cell_mass_percent_fat_free_mass: { value: 50, step_values: [] },
+            skeletal_muscle_mass_kg: { value: 21.6, step_values: [] },
+            skeletal_muscle_percent_fat_free_mass: { value: 40, step_values: [] },
+            total_body_water_l: { value: 39.4, step_values: [] },
+            extracellular_fluid_l: { value: 15.2, step_values: [] },
+            visceral_fat_mass_kg: { value: 1.8, step_values: [] },
+            basal_metabolic_rate_kcal_day: { value: 1620, step_values: [] },
+            specific_basal_metabolic_rate_kcal_m2_day: { value: 900, step_values: [] },
+            waist_circumference_cm: { value: 84, step_values: [] },
+            wrist_circumference_cm: { value: 16.8, step_values: [] },
+            hip_circumference_cm: { value: 100, step_values: [] },
+            neck_circumference_cm: { value: 36.5, step_values: [] },
+            waist_hip_ratio: { value: 0.84, step_values: [] },
+
             hdl_chol: {
               value: 30,
               status: "problem",
