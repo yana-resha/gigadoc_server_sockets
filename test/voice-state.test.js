@@ -73,24 +73,21 @@ test('first phrase sends listening/thinking before start and waiting after the s
   assert.equal(h.messages.some(item => item.type === 'tech'), false);
 });
 
-test('panel phrases use new statuses and a newer click cancels the earlier delayed screen', async t => {
+test('panel navigation sends the snapshot and screen immediately with no simulated voice states', async t => {
   const h = await connect(t);
-  h.intent('start_session', true);
-  await h.until(items => items.some(item => item.type === 'session_start'));
   h.intent('open_checkup_skin', true);
-  await h.until(items => items.at(-1).state === 'listening');
-  h.intent('open_checkup_heart', true);
-  await h.until(items => items.some(item => item.type === 'checkup_heart_ready') && items.at(-1).state === 'waiting');
-  assert.equal(h.messages.some(item => item.type === 'checkup_skin_ready'), false);
-  assert.ok(h.messages.some(item => item.state === 'thinking'));
-  assert.equal(h.messages.filter(item => item.type === 'session_start').length, 1);
+  await h.until(items => items.some(item => item.type === 'checkup_skin_ready') && items.at(-1).state === 'waiting');
+  assert.deepEqual(h.messages.map(({ type }) => type),
+    ['voice_state_changed', 'session_start', 'measurement_snapshot', 'checkup_skin_ready', 'voice_state_changed']);
+  assert.equal(h.messages[0].state, 'waiting');
+  assert.equal(h.messages.at(-1).state, 'waiting');
 });
 
 test('reset cancels the pending phrase, sends end then waiting, and the next session can start', async t => {
   const h = await connect(t);
   h.intent('start_session', true);
   await h.until(items => items.some(item => item.type === 'session_start'));
-  h.intent('open_checkup_vision', true);
+  h.intent('begin_measurements');
   await h.until(items => items.at(-1).state === 'thinking');
   await fetch(`http://127.0.0.1:${port}/reset`, { method: 'POST' });
   await h.until(items => items.some(item => item.type === 'session_end'));
@@ -98,18 +95,18 @@ test('reset cancels the pending phrase, sends end then waiting, and the next ses
   assert.deepEqual(h.messages[end + 1], buildVoiceStateMessage('waiting'));
   h.intent('open_checkup_general', true);
   await h.until(items => items.some(item => item.type === 'checkup_general_ready') && items.at(-1).state === 'waiting');
-  assert.equal(h.messages.some(item => item.type === 'checkup_vision_ready'), false);
+  assert.equal(h.messages.some(item => item.type === 'scan_selection_ready'), false);
   assert.equal(h.messages.filter(item => item.type === 'session_start').length, 2);
 });
 
 
-test('a replacement click before the first delayed start still announces exactly one session', async t => {
+test('a panel click cancels a pending regular phrase and announces its session exactly once', async t => {
   const h = await connect(t);
-  h.intent('open_checkup_skin', true);
+  h.intent('begin_measurements');
   await h.until(items => items.at(-1).state === 'listening');
   h.intent('open_checkup_heart', true);
   await h.until(items => items.some(item => item.type === 'checkup_heart_ready') && items.at(-1).state === 'waiting');
-  assert.equal(h.messages.some(item => item.type === 'checkup_skin_ready'), false);
+  assert.equal(h.messages.some(item => item.type === 'scan_selection_ready'), false);
   assert.equal(h.messages.filter(item => item.type === 'session_start').length, 1);
   assert.ok(h.messages.findIndex(item => item.type === 'session_start') < h.messages.findIndex(item => item.type === 'measurement_snapshot'));
 });

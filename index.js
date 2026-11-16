@@ -134,7 +134,8 @@ const restartCycle = async (socket, declineMeasurements = false) => {
 };
 
 const handleMockUserIntent = (socket, client, payload) => {
-  if (payload?.unrestricted === true || ["restart_session", "end_session"].includes(payload?.intent)) {
+  const unrestricted = payload?.unrestricted === true;
+  if (unrestricted || ["restart_session", "end_session"].includes(payload?.intent)) {
     clearTimers(client);
     client.pendingTurn = false;
   }
@@ -146,7 +147,7 @@ const handleMockUserIntent = (socket, client, payload) => {
   }
 
   const previousSessionId = client.scenario?.sessionId ?? null;
-  const transition = payload?.unrestricted === true ? transitionUnrestrictedScenario : transitionScenario;
+  const transition = unrestricted ? transitionUnrestrictedScenario : transitionScenario;
   const result = transition(client.scenario, payload, { createSessionId });
   if (result.events.some((event) => event.status === "fail")) {
     sendEvents(socket, result.events);
@@ -165,7 +166,7 @@ const handleMockUserIntent = (socket, client, payload) => {
   }
 
   const deliverResult = () => {
-    if (payload.unrestricted === true) {
+    if (unrestricted) {
       // Start/reset before fixture data and navigation, preserving wire order.
       sendEvents(socket, result.events.filter((event) => ["session_start", "session_end"].includes(event.type)));
       if (client.sessionId) {
@@ -186,7 +187,7 @@ const handleMockUserIntent = (socket, client, payload) => {
     sendVoiceState(socket, "waiting");
   };
 
-  if (IMMEDIATE_INTENTS.has(payload.intent)) {
+  if (unrestricted || IMMEDIATE_INTENTS.has(payload.intent)) {
     deliverResult();
     return;
   }
